@@ -2,6 +2,35 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Header } from "@/components/shell/Header";
 import { SidebarNav } from "@/components/shell/SidebarNav";
+import { Outfit, Epilogue, Be_Vietnam_Pro, JetBrains_Mono } from "next/font/google";
+
+const outfit = Outfit({
+  subsets: ["latin"],
+  weight: ["400", "700", "900"],
+  variable: "--nf-outfit",
+  display: "swap",
+});
+
+const epilogue = Epilogue({
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
+  variable: "--nf-epilogue",
+  display: "swap",
+});
+
+const beVietnamPro = Be_Vietnam_Pro({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+  variable: "--nf-be-vietnam-pro",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400"],
+  variable: "--nf-jetbrains-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Hermes AI Prototype",
@@ -14,21 +43,27 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className="dark">
+    <html
+      lang="en"
+      className={[
+        "dark",
+        outfit.variable,
+        epilogue.variable,
+        beVietnamPro.variable,
+        jetbrainsMono.variable,
+      ].join(" ")}
+    >
       <head>
-        {/* Fonts */}
+        {/* Material Symbols — kept on CDN; next/font doesn't support variable icon fonts */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Epilogue:wght@400;600;700&family=Be+Vietnam+Pro:wght@300;400;500;600&family=JetBrains+Mono:wght@400&display=swap"
-          rel="stylesheet"
-        />
-        {/* Material Symbols */}
-        <link
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@400,0&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body className="bg-background text-on-surface font-body overflow-hidden">
-        <div className="min-h-screen bg-background text-on-surface overflow-hidden flex flex-col">
+      <body className="bg-background text-on-surface font-body">
+        <div className="min-h-screen bg-background text-on-surface md:overflow-hidden flex flex-col">
           <Header />
           <SidebarNav />
           <main className="pt-24 pb-6 px-6 flex-1 flex">{children}</main>

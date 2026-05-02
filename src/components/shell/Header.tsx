@@ -2,26 +2,32 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 
 export const Header: React.FC = () => {
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const links = [
+    { href: "/", label: "Interaction" },
+    { href: "/history", label: "History" },
+    { href: "/agents", label: "Agents" },
+    { href: "/tuning", label: "Tuning" },
+  ];
 
   const navLink = (href: string, label: string) => {
     const active = pathname === href;
-    if (active) {
-      return (
-        <Link
-          href={href}
-          className="text-violet-400 border-b-2 border-violet-500 pb-1 font-outfit tracking-tight"
-        >
-          {label}
-        </Link>
-      );
-    }
     return (
       <Link
+        key={href}
         href={href}
-        className="text-neutral-400 hover:text-neutral-200 transition-colors font-outfit tracking-tight"
+        aria-current={active ? "page" : undefined}
+        className={[
+          "font-outfit tracking-tight transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm",
+          active
+            ? "text-primary border-b-2 border-primary pb-1"
+            : "text-on-surface-variant hover:text-on-surface",
+        ].join(" ")}
       >
         {label}
       </Link>
@@ -29,26 +35,74 @@ export const Header: React.FC = () => {
   };
 
   return (
-    <header className="fixed top-0 w-full z-50 bg-neutral-950/40 backdrop-blur-3xl border-b border-white/10 shadow-[0_8px_32px_0_rgba(157,78,221,0.1)] flex justify-between items-center px-8 py-4">
+    <header className="fixed top-0 w-full z-50 bg-surface-container-lowest/80 backdrop-blur-3xl border-b border-white/10 shadow-[0_4px_24px_0_rgba(0,0,0,0.3)] flex justify-between items-center px-8 py-4">
       <div className="flex items-center gap-4">
-        <span className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-violet-600 font-outfit tracking-tight">
+        <span className="text-2xl font-bold text-primary font-outfit tracking-tight">
           Hermes
         </span>
       </div>
-      <nav className="hidden md:flex gap-8">
-        {navLink("/", "Interaction")}
-        {navLink("/history", "History")}
-        {navLink("/agents", "Agents")}
-        {navLink("/tuning", "Tuning")}
+
+      {/* Desktop nav */}
+      <nav aria-label="Main navigation" className="hidden md:flex gap-8">
+        {links.map(({ href, label }) => navLink(href, label))}
       </nav>
-      <div className="flex items-center gap-4">
-        <button className="p-2 text-neutral-400 hover:bg-white/5 transition-all rounded-full active:scale-95 duration-200">
-          <span className="material-symbols-outlined">account_circle</span>
+
+      {/* Right controls */}
+      <div className="flex items-center gap-2">
+        <button
+          aria-label="Account"
+          className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-white/5 transition-all rounded-full active:scale-95 duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">account_circle</span>
         </button>
-        <button className="p-2 text-neutral-400 hover:bg-white/5 transition-all rounded-full active:scale-95 duration-200">
-          <span className="material-symbols-outlined">settings</span>
+        <button
+          aria-label="Settings"
+          className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-white/5 transition-all rounded-full active:scale-95 duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">settings</span>
+        </button>
+        {/* Mobile hamburger */}
+        <button
+          aria-label={mobileOpen ? "Close navigation" : "Open navigation"}
+          aria-expanded={mobileOpen ? "true" : "false"}
+          aria-controls="mobile-nav"
+          className="md:hidden p-2 text-on-surface-variant hover:text-on-surface hover:bg-white/5 transition-all rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          onClick={() => setMobileOpen((v) => !v)}
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">
+            {mobileOpen ? "close" : "menu"}
+          </span>
         </button>
       </div>
+
+      {/* Mobile nav drawer */}
+      {mobileOpen && (
+        <nav
+          id="mobile-nav"
+          aria-label="Mobile navigation"
+          className="md:hidden absolute top-full left-0 w-full bg-surface-container-lowest border-b border-white/10 flex flex-col px-6 py-4 gap-4"
+        >
+          {links.map(({ href, label }) => {
+            const active = pathname === href;
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={active ? "page" : undefined}
+                className={[
+                  "font-outfit tracking-tight py-3 px-4 rounded-xl transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                  active
+                    ? "bg-primary/10 text-primary"
+                    : "text-on-surface-variant hover:text-on-surface hover:bg-white/5",
+                ].join(" ")}
+                onClick={() => setMobileOpen(false)}
+              >
+                {label}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
     </header>
   );
 };

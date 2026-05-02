@@ -57,13 +57,13 @@
   --color-primary-container: #9d4edd;
   --color-error: #ffb4ab;
 
-  --font-body-small: 'Be Vietnam Pro', system-ui, sans-serif;
-  --font-h1: 'Epilogue', system-ui, sans-serif;
-  --font-h2: 'Epilogue', system-ui, sans-serif;
-  --font-body: 'Be Vietnam Pro', system-ui, sans-serif;
-  --font-button: 'Be Vietnam Pro', system-ui, sans-serif;
-  --font-code: 'JetBrains Mono', ui-monospace, SFMono-Regular;
-  --font-outfit: 'Outfit', system-ui, sans-serif;
+  --font-body-small: var(--nf-be-vietnam-pro), system-ui, sans-serif;
+  --font-h1: var(--nf-epilogue), system-ui, sans-serif;
+  --font-h2: var(--nf-epilogue), system-ui, sans-serif;
+  --font-body: var(--nf-be-vietnam-pro), system-ui, sans-serif;
+  --font-button: var(--nf-be-vietnam-pro), system-ui, sans-serif;
+  --font-code: var(--nf-jetbrains-mono), ui-monospace, SFMono-Regular;
+  --font-outfit: var(--nf-outfit), system-ui, sans-serif;
 }
 
 :root {
@@ -74,30 +74,30 @@ body {
   background: var(--color-background);
   color: var(--color-on-surface);
   font-family: var(--font-body);
-  overflow: hidden;
+}
+
+@media (min-width: 768px) {
+  body {
+    overflow: hidden;
+  }
 }
 
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
-/* Glass panels */
+/* Glass panels — use sparingly, max 2 active layers per screen */
 .glass-panel {
+  contain: layout paint;
+  -webkit-backdrop-filter: blur(24px);
   backdrop-filter: blur(24px);
-  background: rgba(20, 20, 28, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-}
-
-.shimmer-text {
-  background: linear-gradient(90deg, #e0b6ff 0%, #9d4edd 50%, #e0b6ff 100%);
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
+  background: var(--color-surface-glass);
+  border: 1px solid var(--color-border-glass);
 }
 
 .topology-line {
   stroke-dasharray: 8;
-  animation: dash 20s linear infinite;
+  animation: dash 20s ease-in-out infinite;
 }
 
 @keyframes dash {
@@ -107,14 +107,13 @@ body {
 }
 
 .agent-card {
-  background: rgba(20, 20, 28, 0.7);
-  border: 1px solid rgba(224, 182, 255, 0.2);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  contain: content;
+  background: var(--color-surface-glass-heavy);
+  border: 1px solid rgba(224, 182, 255, 0.15);
 }
 
 .avatar-glow {
-  box-shadow: 0 0 15px rgba(224, 182, 255, 0.4);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--color-primary) 30%, transparent);
 }
 
 /* Custom scrollbar */
@@ -134,4 +133,16 @@ body {
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .topology-line {
+    animation: none;
+  }
+
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
