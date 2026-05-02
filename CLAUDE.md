@@ -1,142 +1,99 @@
-# Hermes UI — Kimi-style Chat Shell for Hermes Agent
+# CLAUDE.md
 
-A Next.js 16 frontend providing a Kimi.com-style chat interface for the Hermes AI agent platform. Three-zone layout with thread sidebar, chat canvas, and contextual right panel (agent config, swarm visualization, tools).
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Commands
+
+```
+npm run dev      # Development server (Turbopack, default for Next.js 16)
+npm run build    # Production build
+npm start        # Production server
+npm run lint     # ESLint
+```
+
+No test runner is configured yet.
 
 ## Architecture
+
+Next.js 16 App Router with React 19 and Tailwind CSS v4. All components are `"use client"` (they depend on `usePathname()`, `useState()`, and browser-only CSS like `backdrop-filter`).
 
 ```
 src/
 ├── app/
-│   ├── layout.tsx              # Root shell: <html>, fonts, Header + SidebarNav + <main>
-│   ├── globals.css             # Tailwind v4 @theme, glass-panel, topology-line, scrollbar
-│   ├── page.tsx                # / route — "Building a CRM website" demo screen
+│   ├── layout.tsx       # Root shell: <html dark>, fonts, Header + SidebarNav + <main>
+│   ├── globals.css      # Tailwind v4 @theme (60+ color tokens), glass-panel, scrollbar, animations
+│   ├── page.tsx         # / route — "Building a CRM website" demo with agent cards + swarm SVG
 │   └── history/
-│       └── page.tsx            # /history route — "Quantum Swarm Logic" demo screen
+│       └── page.tsx     # /history route — "Quantum Swarm Logic" demo with swarm visualizer
 └── components/
     ├── shell/
-    │   ├── Header.tsx          # Fixed top nav with active-state Link highlighting
-    │   └── SidebarNav.tsx      # Fixed left icon-only nav (80px wide)
+    │   ├── Header.tsx       # Fixed top nav, 4 links: /, /history, /agents, /tuning
+    │   └── SidebarNav.tsx   # Fixed left icon bar (80px), violet ring on active
     └── chat/
-        ├── ThreadList.tsx      # Left sidebar: thread groups (Today/Yesterday)
-        └── ChatInput.tsx       # Glass-morphism chat composer with keyboard submit
+        ├── ThreadList.tsx   # Left sidebar: thread groups (Today/Yesterday), mixed <Link>/<button>
+        └── ChatInput.tsx    # Glass input with onSend callback, Enter to submit
 ```
 
-**Stack:** Next.js 16.2.4 · React 19.2 · Tailwind CSS v4 (`@import "tailwindcss"` + `@theme` block) · TypeScript · Turbopack (default in v16)
+**Layout:** Three-zone fixed layout — Header (z-50, top-0), SidebarNav (fixed left-6 top-24 bottom-6), Main (pt-24 ml-[104px] flex). Within Main: ThreadList (w-1/5) | Chat (flex-1) | Right panel (w-[35%]).
 
-**All components are client components** (`"use client"`) — they use `usePathname()`, `useState()`, and browser-only styling (backdrop-filter, webkit-scrollbar).
-
-## Key Commands
-
-- `npm run dev` — development server (Turbopack)
-- `npm run build` — production build (Turbopack)
-- `npm start` — production server
-- `npm run lint` — ESLint
+**Import alias:** `@/*` maps to `src/*` (configured in tsconfig.json).
 
 ## Design System
 
-### Color Tokens (all defined in `globals.css` `@theme` block)
+### Tailwind v4 Configuration
+Colors and fonts are defined in `globals.css` via `@theme` block — there is **no** `tailwind.config.ts`. Do not add one. Do not use `@apply`; Tailwind v4 discourages it. Use inline utilities or component classes instead.
+
+### Key Color Tokens
 - **Primary:** `primary` (#e0b6ff), `primary-container` (#9d4edd)
-- **Surface:** `background` (#131317), `surface-container` (#1f1f24), `surface-glass` (rgba)
+- **Surfaces:** `background` (#131317), `surface-container` (#1f1f24), `surface-glass` (rgba)
 - **Text:** `on-surface` (#e4e1e7), `text-muted` (#8A8A93), `text-primary` (#EAEAEA)
-- **Accents:** `secondary` (#e5b5ff), `tertiary` (#edc156), `error` (#ffb4ab)
-- All 50+ Material 3-derived tokens are available. Use the exact names from `globals.css` — they're defined as CSS variables and Tailwind utilities.
+- **Terminal:** `terminal-bg` (#050508)
+- All 60+ tokens derive from Material 3. Use exact names from `globals.css`.
 
 ### Custom CSS Classes
-- `.glass-panel` — backdrop-blur(24px) + semi-transparent background + 1px border
-- `.agent-card` — dark card with violet border glow, backdrop-blur(12px)
-- `.topology-line` — animated dashed SVG stroke (used in swarm visualization)
+- `.glass-panel` — `backdrop-blur(24px)` + `rgba(20,20,28,0.4)` bg + 1px white/6 border
+- `.agent-card` — dark card with violet border glow, `backdrop-blur(12px)`
+- `.topology-line` — animated dashed SVG stroke (swarm visualization)
 - `.avatar-glow` — violet box-shadow ring
-- `.custom-scrollbar` — thin 6px dark scrollbar (WebKit only)
+- `.custom-scrollbar` — 6px WebKit scrollbar (dark track, subtle thumb)
 - `.shimmer-text` — gradient text animation (violet → purple)
 
-### Fonts
-- **Headings:** Epilogue (font-h1, font-h2)
-- **Body:** Be Vietnam Pro (font-body, font-button, font-body-small)
-- **Brand:** Outfit (font-outfit)
-- **Code:** JetBrains Mono (font-code)
-- **Icons:** Material Symbols Outlined via Google Fonts CDN
-
-## Layout Pattern
-
-Three-zone fixed layout:
-
-1. **Header** — `fixed top-0`, z-50, glass bg, 4 nav links (/, /history, /agents, /tuning)
-2. **SidebarNav** — `fixed left-6 top-24 bottom-6`, 80px wide, icon buttons with active violet ring
-3. **Main** — `pt-24 pb-6 px-6 flex`, `ml-[104px]` to clear the fixed sidebar
-   - **ThreadList** — `w-1/5`, glass-panel, scrollable thread list
-   - **Chat section** — `flex-1`, glass-panel, messages + ChatInput
-   - **Right panel** — `w-[35%]`, glass-panel, swarm/agent visualization
-
-### Route Conventions
-- Homepage: `/` → `src/app/page.tsx` (CRM agent orchestration)
-- History: `/history` → `src/app/history/page.tsx` (swarm visualization)
-- Agents and Tuning: linked in Header but not yet implemented
-
-## ChatInput Component
-
-Controlled input with:
-- `onSend` callback prop — fires on Enter (not Shift+Enter) or send button click
-- Glass gradient glow on focus (violet gradient blur ring)
-- Attach button (not yet wired), send button (primary-container bg)
-- Clears input after send
-
-## Current State & Roadmap
-
-### What's built (static prototype)
-- Visual shell matching Kimi's three-zone layout
-- Violet glass-morphism design system
-- Two demo screens with hardcoded messages, agent cards, and swarm SVGs
-- Responsive sidebar navigation with active state
-
-### What's not yet built
-- **Hermes API wiring** — no `/api/chat` route, no SSE streaming, no state management
-- **Real thread/session model** — ThreadList items are hardcoded `<Link>` + `<button>` elements
-- **Right panel variants** — Agent config panel, Swarm timeline, Tools panel (only decorative Swarm view exists)
-- **AskUserQuestion dialog** — not implemented
-- **Mode switcher** — Header has nav links but no Chat/Code/Swarm/Document mode toggle
-- **Mobile responsiveness** — fixed widths, no breakpoints for small screens
-- **State management** — no Zustand/Jotai stores, no TanStack Query
-
-### Next steps (in order)
-1. Create `src/app/api/chat/route.ts` — SSE proxy to Hermes OpenAI-compatible endpoint
-2. Add Zustand store for messages, threads, and swarm state
-3. Refactor static message JSX into data-driven `MessageList` component
-4. Wire ChatInput to the store and API
-5. Build proper Agent config panel (profiles, skills toggles, model selector)
-6. Build Swarm timeline panel with real multi-agent orchestration data
-7. Add responsive breakpoints for mobile/tablet
+### Fonts (loaded via Google Fonts CDN in layout.tsx)
+- Headings: Epilogue (`font-h1`, `font-h2`)
+- Body: Be Vietnam Pro (`font-body`, `font-button`, `font-body-small`)
+- Brand: Outfit (`font-outfit`)
+- Code: JetBrains Mono (`font-code`)
+- Icons: Material Symbols Outlined (`material-symbols-outlined` class + `<span>` element, FILL/wght variations in CSS)
 
 ## Code Patterns
 
 ### Active Link Detection
-Both Header and SidebarNav use the pattern:
+Used in Header and SidebarNav:
 ```tsx
 const pathname = usePathname();
 const active = pathname === href;
+// then conditionally apply: active → violet ring + colored text, inactive → neutral
 ```
-Then conditionally apply active styles (violet ring + colored text for active, neutral for inactive).
 
 ### Dynamic Class Joining
-Use `[].join(" ")` for conditional classes — NOT template literals:
+Use `[].join(" ")` — not template literals:
 ```tsx
-className={[
-  "base-class",
-  condition ? "active-class" : "inactive-class",
-].join(" ")}
+className={["base-class", condition ? "on" : "off"].join(" ")}
 ```
 
 ### Inline Arbitrary Values
-Tailwind v4 arbitrary values use the same `[value]` syntax as v3:
-- `text-[13px]`, `text-[16px]` — specific font sizes
-- `rounded-[24px]`, `rounded-[28px]` — non-standard border radii
-- `shadow-[0_8px_32px_0_rgba(157,78,221,0.1)]` — complex box shadows
-- `ml-[104px]` — fixed margins to clear sidebar
+Tailwind arbitrary values (`[value]` syntax): `text-[13px]`, `rounded-[24px]`, `shadow-[0_8px_32px_0_rgba(157,78,221,0.1)]`, `ml-[104px]`.
 
-## File Do's and Don'ts
+### ChatInput Component API
+```tsx
+<ChatInput onSend={(text: string) => void} />
+```
+Controlled input, fires on Enter (not Shift+Enter). Clears after send. `onSend` is optional.
 
-- ✅ Use `@/components/chat/ThreadList` import aliases (configured in tsconfig)
-- ✅ All client components start with `"use client"` directive
-- ✅ Tailwind v4 CSS-first: colors and fonts in `@theme`, custom classes below
-- ❌ Don't add a `tailwind.config.ts` — Tailwind v4 uses CSS config
-- ❌ Don't use `@apply` in CSS — Tailwind v4 discourages it; use component classes or inline utilities
-- ❌ Don't reference external images — use Material Symbols icons or colored div placeholders
+## Current State
+
+This is a **static prototype** — two demo screens with hardcoded messages, agent cards, and swarm SVGs. There is no API layer, no state management library, no database, and no real thread/session model. The ThreadList mixes `Link` (for active routes) and `button` (for inactive items). Routes /agents and /tuning are linked in the shell but return 404.
+
+**What's built:** Visual shell, violet glass-morphism design system, route-aware navigation.
+
+**What's pending:** API routes (`/api/chat` for SSE streaming), state management (Zustand store for messages/threads/swarm), responsive breakpoints, and any real data integration with Hermes backend.
