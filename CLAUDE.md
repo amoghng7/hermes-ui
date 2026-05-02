@@ -97,3 +97,4 @@ This is a **static prototype** — two demo screens with hardcoded messages, age
 **What's built:** Visual shell, violet glass-morphism design system, route-aware navigation.
 
 **What's pending:** API routes (`/api/chat` for SSE streaming), state management (Zustand store for messages/threads/swarm), responsive breakpoints, and any real data integration with Hermes backend.
+

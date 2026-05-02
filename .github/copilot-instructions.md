@@ -1,5 +1,15 @@
 # Hermes UI — Copilot Instructions
 
+## Project Overview
+
+Custom frontend for [Hermes Agent](https://hermes-agent.nousresearch.com/docs/) by Nous Research — an autonomous, self-improving AI agent with swarm orchestration, persistent memory, and 20+ platform adapters.
+
+This is **not a generic chat UI**. It visualizes agent swarms, task delegation, and real-time tool execution. Build accordingly.
+
+Developer guide: [CLAUDE.md](../CLAUDE.md) | Agent conventions & backend integration: [AGENTS.md](../AGENTS.md)
+
+---
+
 ## Design Context
 
 ### Users
