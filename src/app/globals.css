@@ -1,19 +1,87 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-secondary-fixed-dim: #e5b5ff;
+  --color-surface-container-highest: #353439;
+  --color-on-primary-container: #fffdff;
+  --color-background: #131317;
+  --color-border-glass: rgba(255, 255, 255, 0.06);
+  --color-primary-fixed: #f2daff;
+  --color-tertiary-fixed: #ffdf9a;
+  --color-status-error: #FF4A4A;
+  --color-tertiary-container: #947000;
+  --color-text-muted: #8A8A93;
+  --color-surface-container-high: #2a292e;
+  --color-on-secondary-container: #d9a4f8;
+  --color-surface: #131317;
+  --color-on-secondary: #481965;
+  --color-terminal-bg: #050508;
+  --color-surface-tint: #e0b6ff;
+  --color-on-surface: #e4e1e7;
+  --color-outline-variant: #4d4353;
+  --color-on-tertiary-fixed: #251a00;
+  --color-on-error: #690005;
+  --color-on-primary-fixed: #2e004e;
+  --color-surface-container-low: #1b1b1f;
+  --color-surface-dim: #131317;
+  --color-surface-glass-modal: rgba(20, 20, 28, 0.7);
+  --color-on-primary-fixed-variant: #6a0baa;
+  --color-primary: #e0b6ff;
+  --color-tertiary: #edc156;
+  --color-inverse-on-surface: #303034;
+  --color-surface-container-lowest: #0e0e12;
+  --color-surface-variant: #353439;
+  --color-on-primary: #4c007d;
+  --color-surface-glass-heavy: rgba(20, 20, 28, 0.6);
+  --color-on-tertiary-container: #fffdff;
+  --color-on-secondary-fixed: #30004b;
+  --color-on-background: #e4e1e7;
+  --color-secondary: #e5b5ff;
+  --color-surface-container: #1f1f24;
+  --color-text-primary: #EAEAEA;
+  --color-on-secondary-fixed-variant: #60327d;
+  --color-surface-bright: #39393d;
+  --color-tertiary-fixed-dim: #edc156;
+  --color-inverse-surface: #e4e1e7;
+  --color-on-tertiary: #3f2e00;
+  --color-on-surface-variant: #d0c2d5;
+  --color-surface-glass: rgba(20, 20, 28, 0.4);
+  --color-outline: #998d9e;
+  --color-on-tertiary-fixed-variant: #5a4300;
+  --color-secondary-fixed: #f4d9ff;
+  --color-primary-fixed-dim: #e0b6ff;
+  --color-secondary-container: #633480;
+  --color-error-container: #93000a;
+  --color-inverse-primary: #8433c4;
+  --color-on-error-container: #ffdad6;
+  --color-primary-container: #9d4edd;
+  --color-error: #ffb4ab;
+
+  --font-body-small: 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-h1: 'Epilogue', system-ui, sans-serif;
+  --font-h2: 'Epilogue', system-ui, sans-serif;
+  --font-body: 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-button: 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-code: 'JetBrains Mono', ui-monospace, SFMono-Regular;
+  --font-outfit: 'Outfit', system-ui, sans-serif;
+}
 
 :root {
   color-scheme: dark;
 }
 
 body {
-  @apply bg-background text-on-surface font-body overflow-hidden;
+  background: var(--color-background);
+  color: var(--color-on-surface);
+  font-family: var(--font-body);
+  overflow: hidden;
 }
 
 .material-symbols-outlined {
   font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
 }
 
+/* Glass panels */
 .glass-panel {
   backdrop-filter: blur(24px);
   background: rgba(20, 20, 28, 0.4);
@@ -49,6 +117,7 @@ body {
   box-shadow: 0 0 15px rgba(224, 182, 255, 0.4);
 }
 
+/* Custom scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
