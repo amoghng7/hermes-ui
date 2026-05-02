@@ -6,9 +6,15 @@
   --color-on-primary-container: #fffdff;
   --color-background: #131317;
   --color-border-glass: rgba(255, 255, 255, 0.06);
+  --color-border-subtle: rgba(255, 255, 255, 0.05);
+  --color-border-default: rgba(255, 255, 255, 0.10);
+  --color-hover-subtle: rgba(255, 255, 255, 0.05);
   --color-primary-fixed: #f2daff;
   --color-tertiary-fixed: #ffdf9a;
   --color-status-error: #FF4A4A;
+  --shadow-header: 0 4px 24px 0 rgba(0, 0, 0, 0.3);
+  --shadow-sidebar: 20px 0 40px rgba(0, 0, 0, 0.4);
+  --shadow-glow: 0 0 16px rgba(157, 78, 221, 0.2);
   --color-tertiary-container: #947000;
   --color-text-muted: #8A8A93;
   --color-surface-container-high: #2a292e;
@@ -144,5 +150,38 @@ body {
   * {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+/* Mobile bottom navigation */
+.mobile-bottom-nav {
+  background: var(--color-surface-container-lowest);
+  border-top: 1px solid var(--color-border-default);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
+}
+
+/* Responsive panel — collapses to full-width on mobile */
+@media (max-width: 1023px) {
+  .responsive-panel {
+    width: 100% !important;
+    border-radius: 0 !important;
+  }
+}
+
+/* Fluid margin that collapses on mobile */
+.fluid-main-margin {
+  margin-left: 0;
+}
+
+@media (min-width: 768px) {
+  .fluid-main-margin {
+    margin-left: 88px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .fluid-main-margin {
+    margin-left: 104px;
   }
 }
