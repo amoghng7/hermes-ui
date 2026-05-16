@@ -13,6 +13,29 @@ npm run lint     # ESLint
 
 No test runner is configured yet.
 
+## Superpowers Skills
+
+This repo includes the [superpowers](https://github.com/obra/superpowers) skills framework at `.claude/skills/`. These are loaded automatically at session start via `.claude/hooks/hooks.json` → `session-start`. When working on this codebase, you MUST invoke skills before taking action — use the `Skill` tool.
+
+**Key skills for this project:**
+
+| Skill | When to use |
+|---|---|
+| `brainstorming` | Before any feature or creative work — explore intent first |
+| `test-driven-development` | When implementing features or bugfixes (once a test runner is added) |
+| `systematic-debugging` | Root-cause analysis before proposing fixes |
+| `requesting-code-review` | Before merging — verify work against requirements |
+| `receiving-code-review` | When receiving PR feedback — rigor over agreement |
+| `writing-plans` | Multi-step tasks — plan before touching code |
+| `executing-plans` | When you have a plan to execute with review checkpoints |
+| `verification-before-completion` | Before claiming "done" — evidence over assertions |
+| `subagent-driven-development` | Parallelizing independent implementation tasks |
+| `using-git-worktrees` / `finishing-a-development-branch` | Branch isolation and cleanup |
+| `dispatching-parallel-agents` | Independent task parallelization |
+| `writing-skills` | Creating or updating skill files |
+
+**If there's even a 1% chance a skill applies, load it.** The skills are not optional suggestions — they shape how every task gets done. `using-superpowers` boots at session start and establishes the mandatory skill-check flow.
+
 ## Architecture
 
 Next.js 16 App Router with React 19 and Tailwind CSS v4. All components are `"use client"` (they depend on `usePathname()`, `useState()`, and browser-only CSS like `backdrop-filter`).
