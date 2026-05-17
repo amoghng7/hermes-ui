@@ -43,6 +43,9 @@ function resolveAuthHeader(): Record<string, string> {
 /**
  * Throw a typed {@link HermesApiError} if `response.ok` is false.
  *
+ * We attach the typed payload to a real `Error` instance so that callers
+ * receive a proper stack trace rather than a plain thrown object.
+ *
  * @param response - The `Response` object to inspect.
  */
 async function assertOk(response: Response): Promise<void> {
@@ -54,17 +57,19 @@ async function assertOk(response: Response): Promise<void> {
       body = await response.text().catch(() => undefined);
     }
 
-    const error: HermesApiError = {
+    const message =
+      typeof body === "object" &&
+      body !== null &&
+      "message" in body &&
+      typeof (body as Record<string, unknown>)["message"] === "string"
+        ? (body as Record<string, string>)["message"]
+        : response.statusText || `HTTP ${response.status}`;
+
+    const error: HermesApiError = Object.assign(new Error(message), {
       status: response.status,
-      message:
-        typeof body === "object" &&
-        body !== null &&
-        "message" in body &&
-        typeof (body as Record<string, unknown>)["message"] === "string"
-          ? (body as Record<string, string>)["message"]
-          : response.statusText || `HTTP ${response.status}`,
+      message,
       body,
-    };
+    });
     throw error;
   }
 }
@@ -72,6 +77,46 @@ async function assertOk(response: Response): Promise<void> {
 // ---------------------------------------------------------------------------
 // Chat / Completions — SSE streaming
 // ---------------------------------------------------------------------------
+
+/**
+ * Type guard / shape validator for a single SSE choice object.
+ * Returns true when `value` has the expected `delta` and optional
+ * `finish_reason` fields.
+ */
+function isSseChoice(
+  value: unknown
+): value is { delta: Record<string, unknown>; finish_reason: string | null } {
+  return (
+    value !== null &&
+    typeof value === "object" &&
+    "delta" in (value as object) &&
+    typeof (value as Record<string, unknown>)["delta"] === "object"
+  );
+}
+
+/**
+ * Extract a {@link ChatDelta} from a raw parsed SSE chunk.
+ * Returns `null` when the chunk does not contain a usable delta.
+ *
+ * @param parsed - The JSON-parsed SSE data payload.
+ */
+function extractChatDelta(parsed: unknown): ChatDelta | null {
+  if (parsed === null || typeof parsed !== "object") return null;
+
+  const choices = (parsed as Record<string, unknown>)["choices"];
+  if (!Array.isArray(choices) || choices.length === 0) return null;
+
+  const choice = choices[0];
+  if (!isSseChoice(choice)) return null;
+
+  const content =
+    typeof choice.delta["content"] === "string" ? choice.delta["content"] : "";
+  const finishReason =
+    typeof choice.finish_reason === "string" ? choice.finish_reason : null;
+
+  if (!content && !finishReason) return null;
+  return { content, finishReason };
+}
 
 /** Options for a streaming chat request. */
 export interface StreamChatOptions {
@@ -142,10 +187,11 @@ export async function* streamChat(
 
   const body = response.body;
   if (!body) {
-    throw {
-      status: 0,
-      message: "Response body is null — streaming not supported",
-    } satisfies HermesApiError;
+    const err: HermesApiError = Object.assign(
+      new Error("Response body is null — streaming not supported"),
+      { status: 0, message: "Response body is null — streaming not supported" }
+    );
+    throw err;
   }
 
   const reader = body.getReader();
@@ -175,42 +221,15 @@ export async function* streamChat(
           try {
             parsed = JSON.parse(data);
           } catch {
-            // Malformed chunk — skip
+            // Malformed SSE chunk — skip and continue processing
+            if (process.env["NODE_ENV"] === "development") {
+              console.debug("[hermesClient] malformed SSE chunk:", data);
+            }
             continue;
           }
 
-          const choice =
-            parsed !== null &&
-            typeof parsed === "object" &&
-            "choices" in parsed &&
-            Array.isArray((parsed as Record<string, unknown>)["choices"]) &&
-            (parsed as { choices: unknown[] })["choices"][0];
-
-          if (!choice || typeof choice !== "object") continue;
-
-          const delta =
-            "delta" in (choice as object)
-              ? (choice as Record<string, unknown>)["delta"]
-              : null;
-
-          const finishReason =
-            "finish_reason" in (choice as object)
-              ? ((choice as Record<string, unknown>)["finish_reason"] as
-                  | string
-                  | null)
-              : null;
-
-          const content =
-            delta !== null &&
-            typeof delta === "object" &&
-            "content" in (delta as object) &&
-            typeof (delta as Record<string, unknown>)["content"] === "string"
-              ? ((delta as Record<string, string>)["content"] as string)
-              : "";
-
-          if (content || finishReason) {
-            yield { content, finishReason: finishReason ?? null };
-          }
+          const delta = extractChatDelta(parsed);
+          if (delta) yield delta;
         }
       }
     }
