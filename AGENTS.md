@@ -20,6 +20,25 @@ npm run lint     # ESLint
 
 No test runner is configured.
 
+## Superpowers Skills
+
+This repo ships with the [superpowers](https://github.com/obra/superpowers) agentic skills framework in `.claude/skills/`. Skills govern *how* to work — they enforce structured workflows for common tasks:
+
+- **brainstorming** — explore intent and design before coding
+- **test-driven-development** — RED → GREEN → REFACTOR cycle
+- **systematic-debugging** — root-cause analysis before fixes
+- **requesting-code-review** / **receiving-code-review** — pre-merge review discipline
+- **writing-plans** / **executing-plans** — plan-then-execute workflow
+- **subagent-driven-development** — parallel agent task delegation
+- **using-git-worktrees** / **finishing-a-development-branch** — branch hygiene
+- **writing-skills** — create or update skill files
+- **verification-before-completion** — evidence before claiming done
+- **dispatching-parallel-agents** — independent task parallelization
+
+**For AI agents working on this codebase:** Invoke skills with your platform's skill tool BEFORE taking action. If there's even a 1% chance a skill applies, load it. The skills override default behavior — they are not optional suggestions.
+
+`using-superpowers` loads at session start via `.claude/hooks/` and establishes the mandatory skill-check flow.
+
 ## Stack
 
 - **Next.js 16** App Router + **React 19** + **TypeScript 5**
