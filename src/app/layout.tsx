@@ -3,6 +3,7 @@ import "./globals.css";
 import { Header } from "@/components/shell/Header";
 import { SidebarNav } from "@/components/shell/SidebarNav";
 import { MobileBottomNav } from "@/components/shell/MobileBottomNav";
+import { HermesProvider } from "@/components/providers/HermesProvider";
 import { Outfit, Epilogue, Be_Vietnam_Pro, JetBrains_Mono } from "next/font/google";
 
 const outfit = Outfit({
@@ -64,12 +65,14 @@ export default function RootLayout({
         />
       </head>
       <body className="bg-background text-on-surface font-body">
-        <div className="min-h-screen bg-background text-on-surface md:overflow-hidden flex flex-col">
-          <Header />
-          <SidebarNav />
-          <main className="pt-24 pb-24 md:pb-6 px-4 md:px-6 flex-1 flex">{children}</main>
-          <MobileBottomNav />
-        </div>
+        <HermesProvider>
+          <div className="min-h-screen bg-background text-on-surface md:overflow-hidden flex flex-col">
+            <Header />
+            <SidebarNav />
+            <main className="pt-24 pb-24 md:pb-6 px-4 md:px-6 flex-1 flex">{children}</main>
+            <MobileBottomNav />
+          </div>
+        </HermesProvider>
       </body>
     </html>
   );
