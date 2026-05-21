@@ -8,6 +8,7 @@ export default function HistoryPage() {
   const [showCard, setShowCard] = useState(true);
   const dialogRef = useRef<HTMLDivElement>(null);
   const dismissButtonRef = useRef<HTMLButtonElement>(null);
+  const [model, setModel] = useState("hermes");
 
   // Focus the dialog when it opens
   useEffect(() => {
@@ -93,7 +94,11 @@ export default function HistoryPage() {
           </div>
         </div>
 
-        <ChatInput />
+        <ChatInput
+          onSend={async () => {}}
+          model={model}
+          onModelChange={setModel}
+        />
       </section>
 
       {/* Right swarm visualizer — differentiated from home page with list-based layout */}
