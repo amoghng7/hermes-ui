@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ThreadList } from "@/components/chat/ThreadList";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { MessageList } from "@/components/chat/MessageList";
@@ -28,62 +28,96 @@ export default function HomePage() {
   const [model, setModel] = useState("hermes");
   const [isSending, setIsSending] = useState(false);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const sendingRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const streamRunIdRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      streamRunIdRef.current += 1;
+      abortRef.current?.abort();
+      abortRef.current = null;
+      sendingRef.current = false;
+      setIsSending(false);
+    };
+  }, [activeSessionId]);
 
   const handleSend = async (text: string): Promise<void> => {
-    if (!activeSessionId || isSending) return;
+    if (!activeSessionId || sendingRef.current) return;
 
+    const runId = streamRunIdRef.current + 1;
+    streamRunIdRef.current = runId;
+    abortRef.current?.abort();
+    const abortController = new AbortController();
+    abortRef.current = abortController;
+    sendingRef.current = true;
     setIsSending(true);
     const createdAt = new Date().toISOString();
     const userMessageId = makeMessageId("user");
     const assistantMessageId = makeMessageId("assistant");
+    const sessionId = activeSessionId;
 
     const userMessage: Message = {
       id: userMessageId,
-      sessionId: activeSessionId,
+      sessionId,
       role: "user",
       content: text,
       createdAt,
     };
-    appendMessage(activeSessionId, userMessage);
-    finalizeMessage(activeSessionId, userMessageId);
+    appendMessage(sessionId, userMessage);
+    finalizeMessage(sessionId, userMessageId);
 
-    const history = (useHermesStore.getState().messagesBySession[activeSessionId] ?? []).map(
+    const history = (useHermesStore.getState().messagesBySession[sessionId] ?? []).map(
       (message) => ({ role: message.role, content: message.content })
     );
 
     let assistantContent = "";
-    appendMessage(activeSessionId, {
+    appendMessage(sessionId, {
       id: assistantMessageId,
-      sessionId: activeSessionId,
+      sessionId,
       role: "assistant",
       content: assistantContent,
       createdAt,
     });
 
     try {
-      for await (const delta of streamChat({ messages: history, model })) {
+      for await (const delta of streamChat({
+        messages: history,
+        model,
+        signal: abortController.signal,
+      })) {
+        if (streamRunIdRef.current !== runId || abortController.signal.aborted) {
+          return;
+        }
         assistantContent += delta.content;
-        appendMessage(activeSessionId, {
+        appendMessage(sessionId, {
           id: assistantMessageId,
-          sessionId: activeSessionId,
+          sessionId,
           role: "assistant",
           content: assistantContent,
           createdAt,
         });
       }
     } catch (error) {
+      if (abortController.signal.aborted) return;
       const errorText =
         error instanceof Error ? error.message : "Unable to stream response from Hermes.";
-      appendMessage(activeSessionId, {
+      appendMessage(sessionId, {
         id: assistantMessageId,
-        sessionId: activeSessionId,
+        sessionId,
         role: "assistant",
         content: assistantContent || `⚠ ${errorText}`,
         createdAt,
       });
     } finally {
-      finalizeMessage(activeSessionId, assistantMessageId);
-      setIsSending(false);
+      if (streamRunIdRef.current === runId) {
+        finalizeMessage(sessionId, assistantMessageId);
+        setIsSending(false);
+        sendingRef.current = false;
+        if (abortRef.current === abortController) {
+          abortRef.current = null;
+        }
+      }
     }
   };
 

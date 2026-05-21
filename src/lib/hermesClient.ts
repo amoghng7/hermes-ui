@@ -141,6 +141,8 @@ export interface StreamChatOptions {
    * @default globalThis.fetch
    */
   fetchImpl?: typeof fetch;
+  /** Abort signal used to cancel an in-flight stream. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -169,6 +171,7 @@ export async function* streamChat(
     model = "hermes",
     baseUrl = resolveBaseUrl(),
     fetchImpl = globalThis.fetch,
+    signal,
   } = options;
 
   const url = `${baseUrl}/v1/chat/completions`;
@@ -181,6 +184,7 @@ export async function* streamChat(
       ...resolveAuthHeader(),
     },
     body: JSON.stringify({ model, messages, stream: true }),
+    signal,
   });
 
   await assertOk(response);

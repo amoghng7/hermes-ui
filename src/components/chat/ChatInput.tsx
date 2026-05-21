@@ -12,7 +12,7 @@ interface ChatInputProps {
 
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
-function extractFileReference(result: unknown, fallbackName: string): string {
+function extractFileReference(result: unknown): string | null {
   if (typeof result === "string" && result.trim()) return result;
   if (result && typeof result === "object") {
     const maybeRef = (result as Record<string, unknown>).reference;
@@ -24,7 +24,23 @@ function extractFileReference(result: unknown, fallbackName: string): string {
       return `file:${maybeFileId}`;
     }
   }
-  return `file:${fallbackName}`;
+  return null;
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.onload = () => {
+      if (typeof reader.result !== "string") {
+        reject(new Error("Failed to read file"));
+        return;
+      }
+      const commaIndex = reader.result.indexOf(",");
+      resolve(commaIndex >= 0 ? reader.result.slice(commaIndex + 1) : reader.result);
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 export const ChatInput: React.FC<ChatInputProps> = ({
@@ -66,14 +82,22 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const submit = async () => {
     const trimmed = value.trim();
     if (!trimmed || disabled) return;
+    const previousValue = value;
+    const previousAttachments = attachments;
     const textWithAttachments =
       attachments.length > 0
         ? `${trimmed}\n\nAttached files:\n${attachments.map((item) => `- ${item}`).join("\n")}`
         : trimmed;
-    await onSend(textWithAttachments);
     setValue("");
     setAttachments([]);
     setAttachmentError(null);
+    try {
+      await onSend(textWithAttachments);
+    } catch {
+      setValue(previousValue);
+      setAttachments(previousAttachments);
+      setAttachmentError("Message failed to send.");
+    }
   };
 
   const onKeyDown: React.KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
@@ -94,24 +118,21 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     setIsAttaching(true);
     setAttachmentError(null);
     try {
-      const bytes = new Uint8Array(await file.arrayBuffer());
-      const chunkSize = 0x8000;
-      const chunks: string[] = [];
-      for (let index = 0; index < bytes.length; index += chunkSize) {
-        const chunk = bytes.subarray(index, index + chunkSize);
-        chunks.push(Array.from(chunk, (byte) => String.fromCharCode(byte)).join(""));
-      }
+      const contentBase64 = await fileToBase64(file);
       const toolResult = await callTool("file", {
         filename: file.name,
         mime_type: file.type || "application/octet-stream",
         size_bytes: file.size,
-        content_base64: btoa(chunks.join("")),
+        content_base64: contentBase64,
       });
-      const reference = extractFileReference(toolResult, file.name);
+      const reference = extractFileReference(toolResult);
+      if (!reference) {
+        setAttachmentError("Attachment upload failed; no file reference returned.");
+        return;
+      }
       setAttachments((previous) => [...previous, reference]);
     } catch {
-      setAttachments((previous) => [...previous, `file:${file.name}`]);
-      setAttachmentError("Attachment upload failed; added placeholder file reference.");
+      setAttachmentError("Attachment upload failed.");
     } finally {
       setIsAttaching(false);
       event.target.value = "";
@@ -172,7 +193,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           onClick={() => void submit()}
         >
           <span className="material-symbols-outlined text-white" aria-hidden="true">
-            {disabled ? "stop" : "send"}
+            send
           </span>
         </button>
       </div>
