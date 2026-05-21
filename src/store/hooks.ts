@@ -11,6 +11,11 @@
 import { useHermesStore } from "@/store/hermesStore";
 import type { Agent, MemoryEntry, Message, Profile, Session } from "@/types/hermes";
 
+// Stable empty arrays — returned instead of `[]` literals so that
+// components don't re-render on every unrelated store update.
+const EMPTY_MESSAGES: Message[] = [];
+const EMPTY_AGENTS: Agent[] = [];
+
 // ---------------------------------------------------------------------------
 // Profiles
 // ---------------------------------------------------------------------------
@@ -55,7 +60,7 @@ export function useActiveSession(): Session | null {
  */
 export function useMessages(sessionId: string | null): Message[] {
   return useHermesStore((s) =>
-    sessionId ? (s.messagesBySession[sessionId] ?? []) : []
+    sessionId ? (s.messagesBySession[sessionId] ?? EMPTY_MESSAGES) : EMPTY_MESSAGES
   );
 }
 
@@ -74,7 +79,7 @@ export function useIsStreaming(sessionId: string | null): boolean {
  */
 export function useAgents(sessionId: string | null): Agent[] {
   return useHermesStore((s) =>
-    sessionId ? (s.agents[sessionId] ?? []) : []
+    sessionId ? (s.agents[sessionId] ?? EMPTY_AGENTS) : EMPTY_AGENTS
   );
 }
 

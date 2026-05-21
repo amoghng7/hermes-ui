@@ -31,6 +31,8 @@ export interface HermesState {
   messagesBySession: Record<string, Message[]>;
   /** Which session is currently streaming (null if none). */
   streamingSessionId: string | null;
+  /** The message ID currently being streamed (null if none). */
+  streamingMessageId: string | null;
   /** Swarm agents keyed by sessionId. */
   agents: Record<string, Agent[]>;
   skills: Skill[];
@@ -73,7 +75,8 @@ export interface HermesActions {
 
   /**
    * Mark a streaming message as complete.
-   * Clears `streamingSessionId` when the messageId matches.
+   * Clears `streamingSessionId` and `streamingMessageId` only when both
+   * the `sessionId` and `messageId` match the currently active stream.
    */
   finalizeMessage(sessionId: string, messageId: string): void;
 
@@ -95,6 +98,7 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
   activeSessionId: null,
   messagesBySession: {},
   streamingSessionId: null,
+  streamingMessageId: null,
   agents: {},
   skills: [],
   mcpServers: [],
@@ -109,6 +113,8 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
         listSessions(id),
         getMemory(id),
       ]);
+      // Discard stale response if profile switched again while awaiting.
+      if (get().activeProfileId !== id) return;
       set({ sessions, memory });
     } catch {
       // Silently tolerate gateway errors — gateway may not be running.
@@ -160,16 +166,22 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
       return {
         messagesBySession: { ...state.messagesBySession, [sessionId]: updated },
         streamingSessionId: sessionId,
+        streamingMessageId: message.id,
       };
     });
   },
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  finalizeMessage(sessionId: string, _messageId: string) {
-    set((state) => ({
-      streamingSessionId:
-        state.streamingSessionId === sessionId ? null : state.streamingSessionId,
-    }));
+  finalizeMessage(sessionId: string, messageId: string) {
+    set((state) => {
+      // Only clear streaming state when both session and message ID match.
+      if (
+        state.streamingSessionId !== sessionId ||
+        state.streamingMessageId !== messageId
+      ) {
+        return {};
+      }
+      return { streamingSessionId: null, streamingMessageId: null };
+    });
   },
 
   // ── Internal helpers ─────────────────────────────────────────────────────
