@@ -107,7 +107,7 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
   // ── Actions ──────────────────────────────────────────────────────────────
 
   async setActiveProfile(id: string) {
-    set({ activeProfileId: id, sessions: [], activeSessionId: null, memory: [] });
+    set({ activeProfileId: id, sessions: [], activeSessionId: null, memory: [], streamingSessionId: null, streamingMessageId: null });
     try {
       const [sessions, memory] = await Promise.all([
         listSessions(id),
