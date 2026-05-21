@@ -87,6 +87,7 @@ export default function HomePage() {
         signal: abortController.signal,
       })) {
         if (streamRunIdRef.current !== runId || abortController.signal.aborted) {
+          finalizeMessage(sessionId, assistantMessageId);
           return;
         }
         assistantContent += delta.content;
@@ -99,16 +100,17 @@ export default function HomePage() {
         });
       }
     } catch (error) {
-      if (abortController.signal.aborted) return;
-      const errorText =
-        error instanceof Error ? error.message : "Unable to stream response from Hermes.";
-      appendMessage(sessionId, {
-        id: assistantMessageId,
-        sessionId,
-        role: "assistant",
-        content: assistantContent || `⚠ ${errorText}`,
-        createdAt,
-      });
+      if (!abortController.signal.aborted) {
+        const errorText =
+          error instanceof Error ? error.message : "Unable to stream response from Hermes.";
+        appendMessage(sessionId, {
+          id: assistantMessageId,
+          sessionId,
+          role: "assistant",
+          content: assistantContent || `⚠ ${errorText}`,
+          createdAt,
+        });
+      }
     } finally {
       if (streamRunIdRef.current === runId) {
         finalizeMessage(sessionId, assistantMessageId);

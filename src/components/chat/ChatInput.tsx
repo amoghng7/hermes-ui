@@ -30,10 +30,10 @@ function extractFileReference(result: unknown): string | null {
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Failed to read file"));
+    reader.onerror = () => reject(new Error("Failed to read file contents."));
     reader.onload = () => {
       if (typeof reader.result !== "string") {
-        reject(new Error("Failed to read file"));
+        reject(new Error("File data could not be processed as text."));
         return;
       }
       const commaIndex = reader.result.indexOf(",");
@@ -93,10 +93,14 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     setAttachmentError(null);
     try {
       await onSend(textWithAttachments);
-    } catch {
+    } catch (error) {
+      const message =
+        error instanceof Error && error.message.trim()
+          ? `Message failed to send: ${error.message}`
+          : "Message failed to send.";
       setValue(previousValue);
       setAttachments(previousAttachments);
-      setAttachmentError("Message failed to send.");
+      setAttachmentError(message);
     }
   };
 
@@ -127,7 +131,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
       });
       const reference = extractFileReference(toolResult);
       if (!reference) {
-        setAttachmentError("Attachment upload failed; no file reference returned.");
+        setAttachmentError("Attachment upload failed. No file reference returned.");
         return;
       }
       setAttachments((previous) => [...previous, reference]);
