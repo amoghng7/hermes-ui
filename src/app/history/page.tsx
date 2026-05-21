@@ -96,6 +96,7 @@ export default function HistoryPage() {
 
         <ChatInput
           onSend={async () => {}}
+          disabled
           model={model}
           onModelChange={setModel}
         />

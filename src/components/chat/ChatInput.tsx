@@ -10,6 +10,8 @@ interface ChatInputProps {
   onModelChange: (model: string) => void;
 }
 
+const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
 function extractFileReference(result: unknown, fallbackName: string): string {
   if (typeof result === "string" && result.trim()) return result;
   if (result && typeof result === "object") {
@@ -35,7 +37,9 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const [models, setModels] = useState<string[]>(["hermes"]);
   const [attachments, setAttachments] = useState<string[]>([]);
   const [isAttaching, setIsAttaching] = useState(false);
+  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const textAreaRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -52,6 +56,13 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    const textArea = textAreaRef.current;
+    if (!textArea) return;
+    textArea.style.height = "auto";
+    textArea.style.height = `${Math.min(textArea.scrollHeight, 220)}px`;
+  }, [value]);
+
   const submit = async () => {
     const trimmed = value.trim();
     if (!trimmed || disabled) return;
@@ -62,6 +73,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
     await onSend(textWithAttachments);
     setValue("");
     setAttachments([]);
+    setAttachmentError(null);
   };
 
   const onKeyDown: React.KeyboardEventHandler<HTMLTextAreaElement> = (e) => {
@@ -74,17 +86,32 @@ export const ChatInput: React.FC<ChatInputProps> = ({
   const handleAttach = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      setAttachmentError("Attachment is too large (max 5MB).");
+      event.target.value = "";
+      return;
+    }
     setIsAttaching(true);
+    setAttachmentError(null);
     try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const chunkSize = 0x8000;
+      const chunks: string[] = [];
+      for (let index = 0; index < bytes.length; index += chunkSize) {
+        const chunk = bytes.subarray(index, index + chunkSize);
+        chunks.push(Array.from(chunk, (byte) => String.fromCharCode(byte)).join(""));
+      }
       const toolResult = await callTool("file", {
         filename: file.name,
         mime_type: file.type || "application/octet-stream",
         size_bytes: file.size,
+        content_base64: btoa(chunks.join("")),
       });
       const reference = extractFileReference(toolResult, file.name);
       setAttachments((previous) => [...previous, reference]);
     } catch {
       setAttachments((previous) => [...previous, `file:${file.name}`]);
+      setAttachmentError("Attachment upload failed; added placeholder file reference.");
     } finally {
       setIsAttaching(false);
       event.target.value = "";
@@ -127,6 +154,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           Message
         </label>
         <textarea
+          ref={textAreaRef}
           id="chat-input"
           rows={1}
           disabled={disabled}
@@ -148,7 +176,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           </span>
         </button>
       </div>
-      {(attachments.length > 0 || isAttaching) && (
+      {(attachments.length > 0 || isAttaching || attachmentError) && (
         <div className="mt-3 text-xs text-text-muted flex flex-wrap gap-2">
           {attachments.map((attachment) => (
             <span key={attachment} className="px-2 py-1 rounded-full bg-surface-container-high border border-border-subtle">
@@ -156,6 +184,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
             </span>
           ))}
           {isAttaching && <span className="animate-pulse">Uploading…</span>}
+          {attachmentError && <span className="text-secondary">{attachmentError}</span>}
         </div>
       )}
     </div>
