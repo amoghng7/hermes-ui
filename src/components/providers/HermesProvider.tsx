@@ -50,7 +50,8 @@ export function HermesProvider({ children }: HermesProviderProps) {
     };
 
     // Await bootstrap before polling so the first poll finds a valid activeProfileId.
-    // bootstrapStore() already handles its own errors internally.
+    // bootstrapStore() handles its own errors internally; we only need to suppress
+    // the unhandled-rejection warning here since there is nothing actionable to do.
     bootstrapStore().then(() => {
       if (!mounted) return;
       void poll();

@@ -301,8 +301,9 @@ export const ThreadList: React.FC = () => {
         await renameSession(id, trimmed);
         setRenamingId(null);
         setRenameError(null);
-      } catch {
-        setRenameError("Rename failed. Press Escape to cancel.");
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Rename failed";
+        setRenameError(`${msg}. Press Escape to cancel.`);
       }
     },
     [renameValue, renameSession]

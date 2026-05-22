@@ -49,7 +49,7 @@ function findTrailingJsonBlock(
   content: string,
 ): { start: number; end: number; parsed: Record<string, unknown> } | null {
   // Collect all closing-brace positions in one forward pass so we can iterate
-  // backwards without repeated lastIndexOf calls — avoids O(n²) in the worst case.
+  // backwards without repeated string scans when multiple closing braces are tried.
   const closingBraces: number[] = [];
   for (let i = 0; i < content.length; i++) {
     if (content[i] === "}") closingBraces.push(i);
