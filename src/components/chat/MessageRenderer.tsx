@@ -39,7 +39,7 @@ const markdownComponents: Components = {
     );
   },
   code({ className, children, ...props }) {
-    const isBlock = Boolean(className?.startsWith("language-"));
+    const isBlock = className?.startsWith("language-") === true;
     if (isBlock) {
       return (
         <code className={className} {...props}>
@@ -192,6 +192,51 @@ export function MessageRenderer({ message, toolCalls, isStreaming }: MessageRend
       return <FilePreview {...fileData} />;
     }
 
+    // Try todo checklist (JSON { type/tool: "todo", items: [...] } or GFM task list)
+    // Try todo checklist (JSON { type/tool: "todo", items: [...] } or GFM task list)
+    let todoItems: import("./TodoChecklist").TodoItem[] | null = null;
+    try {
+      const parsed = JSON.parse(content) as unknown;
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        (
+          (parsed as Record<string, unknown>)["type"] === "todo" ||
+          (parsed as Record<string, unknown>)["tool"] === "todo"
+        )
+      ) {
+        const rawItems = (parsed as Record<string, unknown>)["items"];
+        if (Array.isArray(rawItems)) {
+          todoItems = rawItems.map((item: unknown, idx: number) => {
+            if (typeof item === "string") return { id: String(idx), label: item, checked: false };
+            if (item && typeof item === "object") {
+              const o = item as Record<string, unknown>;
+              return {
+                id: String(o["id"] ?? idx),
+                label: String(o["text"] ?? o["content"] ?? o["label"] ?? ""),
+                checked: Boolean(o["checked"] ?? o["done"] ?? false),
+              };
+            }
+            return { id: String(idx), label: String(item), checked: false };
+          });
+        }
+      }
+    } catch {
+      // Not JSON — fall through
+    }
+
+    if (!todoItems) {
+      // GFM task list in tool output
+      const taskItems = parseTaskList(content);
+      if (taskItems.length > 0) {
+        todoItems = taskItems;
+      }
+    }
+
+    if (todoItems) {
+      return <TodoChecklist items={todoItems} />;
+    }
+
     // Fallback: show raw tool output in a terminal-style card
     return <TerminalCard output={content} toolName="tool" />;
   }
@@ -202,13 +247,6 @@ export function MessageRenderer({ message, toolCalls, isStreaming }: MessageRend
   const subagent = parseSubagentMessage(content);
   const renderContent = subagent ? subagent.content : content;
 
-  // Detect task list — if the content has task items, render TodoChecklist after markdown
-  const taskItems = parseTaskList(renderContent);
-  const hasTaskList = taskItems.length > 0;
-
-  // For streaming, append cursor marker to the markdown content
-  const displayContent = isStreaming ? renderContent + " ▍" : renderContent;
-
   return (
     <div className="space-y-1">
       {/* Subagent badge */}
@@ -218,20 +256,22 @@ export function MessageRenderer({ message, toolCalls, isStreaming }: MessageRend
         </div>
       )}
 
-      {/* Main content */}
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={[
-          [rehypeHighlight, { ignoreMissing: true }],
-          [rehypeSanitize, sanitizeSchema],
-        ]}
-        components={markdownComponents}
-      >
-        {displayContent}
-      </ReactMarkdown>
-
-      {/* Interactive checklist — rendered below markdown when task items detected */}
-      {hasTaskList && <TodoChecklist items={taskItems} />}
+      {/* Main content — streaming cursor rendered as a sibling span, not inside markdown */}
+      <div className="relative">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={[
+            [rehypeHighlight, { ignoreMissing: true }],
+            [rehypeSanitize, sanitizeSchema],
+          ]}
+          components={markdownComponents}
+        >
+          {renderContent}
+        </ReactMarkdown>
+        {isStreaming && (
+          <span className="inline-block w-0.5 h-[1.1em] bg-current align-middle animate-pulse ml-0.5" aria-hidden="true" />
+        )}
+      </div>
 
       {/* Tool timeline */}
       {toolCalls && toolCalls.length > 0 && (

@@ -7,6 +7,9 @@ export interface ToolTimelineProps {
   toolCalls: ToolCall[];
 }
 
+/** Max characters to show in result snippet before truncating */
+const RESULT_TRUNCATE_LENGTH = 800;
+
 type ToolStatus = "running" | "success" | "error";
 
 function getToolStatus(call: ToolCall): ToolStatus {
@@ -118,8 +121,8 @@ function TimelineEntry({ call }: TimelineEntryProps) {
             <div>
               <p className="text-[0.6875rem] uppercase tracking-wider text-text-muted mb-1">Result</p>
               <pre className="font-code text-[0.75rem] text-on-surface-variant bg-surface-container rounded-lg p-3 overflow-x-auto whitespace-pre-wrap max-h-40 overflow-y-auto">
-                {call.result.output.length > 800
-                  ? call.result.output.slice(0, 800) + "\n… (truncated)"
+                {call.result.output.length > RESULT_TRUNCATE_LENGTH
+                  ? call.result.output.slice(0, RESULT_TRUNCATE_LENGTH) + "\n… (truncated)"
                   : call.result.output}
               </pre>
             </div>
