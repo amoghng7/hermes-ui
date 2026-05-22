@@ -25,30 +25,63 @@ function makeMessageId(prefix: string): string {
 
 /**
  * Scan backwards from the final "}" in `content` using a brace-depth counter
- * to locate the outermost balanced "{…}" block.  Returns `{ start, parsed }`
+ * that ignores braces inside JSON string values.  Returns `{ start, parsed }`
  * where `start` is the index of the opening "{" and `parsed` is the decoded
  * JSON object, or `null` if no valid JSON object is found.
  *
+ * String-aware: tracks escape sequences and quoted-string state so that
+ * braces inside values like `"Should I use {placeholder}?"` don't confuse
+ * the depth counter.
+ *
  * Unlike `lastIndexOf("{")`, this correctly handles nested objects such as
- * `{"type":"confirmation_required","parameters":{"path":"/tmp"}}`.
+ * `{"type":"confirmation_required","parameters":{"path":"/tmp"}}` and
+ * braces inside string values.
  */
 function findTrailingJsonBlock(
-  content: string
+  content: string,
 ): { start: number; parsed: Record<string, unknown> } | null {
   const lastClose = content.lastIndexOf("}");
   if (lastClose === -1) return null;
 
   let depth = 0;
+  let inString = false;
+  let escaped = false;
   for (let i = lastClose; i >= 0; i--) {
     const ch = content[i];
+
+    // Track escape sequences: a backslash reverses the escaped flag
+    if (ch === "\\" && !escaped) {
+      escaped = true;
+      continue;
+    }
+
+    // A quote toggles string state — but only when not escaped
+    if (ch === '"' && !escaped) {
+      inString = !inString;
+      escaped = false;
+      continue;
+    }
+
+    escaped = false;
+
+    // Skip braces inside strings
+    if (inString) continue;
+
     if (ch === "}") depth++;
     else if (ch === "{") {
       depth--;
       if (depth === 0) {
         try {
           const parsed: unknown = JSON.parse(content.slice(i, lastClose + 1));
-          if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
-            return { start: i, parsed: parsed as Record<string, unknown> };
+          if (
+            parsed !== null &&
+            typeof parsed === "object" &&
+            !Array.isArray(parsed)
+          ) {
+            return {
+              start: i,
+              parsed: parsed as Record<string, unknown>,
+            };
           }
         } catch {
           // Not valid JSON — ignore
@@ -66,11 +99,24 @@ function extractTrailingJson(content: string): Record<string, unknown> | null {
 
 /**
  * Remove the trailing JSON marker block from `content` so protocol internals
- * are not visible in the chat transcript.  Returns the trimmed prefix.
+ * are not visible in the chat transcript.
+ *
+ * Only strips when the JSON block is at the absolute end of the content
+ * (only whitespace is allowed after the closing `}`).  If the marker is
+ * followed by non-whitespace prose, returns the content unchanged so the
+ * user can still see their full message.
  */
 function stripTrailingJson(content: string): string {
   const result = findTrailingJsonBlock(content);
   if (!result) return content;
+
+  // Verify only whitespace follows the closing brace
+  const afterBlock = content.slice(result.start).slice(
+    // length of the JSON block = lastClose - start + 1
+    content.lastIndexOf("}", result.start) - result.start + 1,
+  );
+  if (afterBlock.trim().length > 0) return content;
+
   return content.slice(0, result.start).trimEnd();
 }
 
