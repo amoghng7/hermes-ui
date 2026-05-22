@@ -20,8 +20,14 @@ const sanitizeSchema = {
   ...defaultSchema,
   attributes: {
     ...defaultSchema.attributes,
-    code: [...(defaultSchema.attributes?.["code"] ?? []), "className"],
-    span: [...(defaultSchema.attributes?.["span"] ?? []), "className"],
+    code: [
+      ...(defaultSchema.attributes?.["code"] ?? []),
+      ["className", /^hljs(-|$)/, /^language-/],
+    ],
+    span: [
+      ...(defaultSchema.attributes?.["span"] ?? []),
+      ["className", /^hljs(-|$)/, /^language-/],
+    ],
   },
 };
 

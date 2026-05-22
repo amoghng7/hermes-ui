@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export interface TodoItem {
   id: string;
@@ -38,6 +38,11 @@ export function parseTaskList(markdown: string): TodoItem[] {
 
 export function TodoChecklist({ items, onToggle }: TodoChecklistProps) {
   const [localItems, setLocalItems] = useState<TodoItem[]>(items);
+
+  // Sync local state when the prop is updated (e.g. streaming tool results)
+  useEffect(() => {
+    setLocalItems(items);
+  }, [items]);
 
   const handleToggle = (id: string) => {
     const item = localItems.find((i) => i.id === id);

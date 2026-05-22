@@ -141,11 +141,15 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
 
   async deleteSession(id: string) {
     await apiDeleteSession(id);
-    set((state) => ({
-      sessions: state.sessions.filter((s) => s.id !== id),
-      activeSessionId:
-        state.activeSessionId === id ? null : state.activeSessionId,
-    }));
+    set((state) => {
+      const { [id]: _toolCalls, ...remainingToolCalls } = state.toolCallsBySession;
+      return {
+        sessions: state.sessions.filter((s) => s.id !== id),
+        activeSessionId:
+          state.activeSessionId === id ? null : state.activeSessionId,
+        toolCallsBySession: remainingToolCalls,
+      };
+    });
   },
 
   setActiveSession(id: string) {

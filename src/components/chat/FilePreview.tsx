@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface FilePreviewProps {
   /** File name (e.g. "screenshot.png", "report.pdf"). */
@@ -19,17 +19,22 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** Returns true when a URL uses a safe scheme (https, http, data:image with subtype, blob, or absolute path). */
+function isSafeUrl(url: string): boolean {
+  return /^(https?:|data:image\/[a-z]+;base64,|blob:|\/)/i.test(url);
+}
+
 /**
  * Parse an assistant message looking for inline images or file references.
  * Returns null when no file content is detected.
  */
 export function parseFileContent(content: string): FilePreviewProps | null {
-  // Markdown image: ![alt](url)
-  const imgMatch = /^!\[([^\]]*)\]\(([^)]+)\)$/.exec(content.trim());
+  // Markdown image: ![alt](url) or ![alt](url "title")
+  const imgMatch = /^!\[([^\]]*)\]\(([^)"\s]+)(?:\s+"[^"]*")?\)$/.exec(content.trim());
   if (imgMatch) {
     const url = imgMatch[2] ?? "";
     // Only allow safe URL schemes
-    if (/^(https?:|data:image\/|blob:|\/)/i.test(url)) {
+    if (isSafeUrl(url)) {
       return { name: imgMatch[1] || "image", url, type: "image" };
     }
   }
@@ -40,6 +45,9 @@ export function parseFileContent(content: string): FilePreviewProps | null {
     if (parsed && typeof parsed === "object") {
       const p = parsed as Record<string, unknown>;
       if (p["type"] === "file" && typeof p["name"] === "string" && typeof p["url"] === "string") {
+        const fileUrl = p["url"] as string;
+        // Reject unsafe URL schemes (e.g. javascript:)
+        if (!isSafeUrl(fileUrl)) return null;
         const ext = (p["name"] as string).split(".").pop()?.toLowerCase() ?? "";
         const type: FilePreviewProps["type"] =
           ["png", "jpg", "jpeg", "gif", "webp", "svg"].includes(ext)
@@ -51,7 +59,7 @@ export function parseFileContent(content: string): FilePreviewProps | null {
                 : "other";
         return {
           name: p["name"] as string,
-          url: p["url"] as string,
+          url: fileUrl,
           type,
           sizeBytes: typeof p["size"] === "number" ? p["size"] : undefined,
         };
@@ -66,6 +74,18 @@ export function parseFileContent(content: string): FilePreviewProps | null {
 
 export function FilePreview({ name, url, type, sizeBytes }: FilePreviewProps) {
   const [lightboxOpen, setLightboxOpen] = useState(false);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Focus the close button when lightbox opens; dismiss on Escape
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    closeButtonRef.current?.focus();
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setLightboxOpen(false);
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [lightboxOpen]);
 
   if (type === "image") {
     return (
@@ -89,6 +109,7 @@ export function FilePreview({ name, url, type, sizeBytes }: FilePreviewProps) {
             onClick={() => setLightboxOpen(false)}
           >
             <button
+              ref={closeButtonRef}
               type="button"
               className="absolute top-4 right-4 text-on-surface hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               onClick={() => setLightboxOpen(false)}
