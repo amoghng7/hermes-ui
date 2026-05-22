@@ -141,6 +141,8 @@ export interface StreamChatOptions {
    * @default globalThis.fetch
    */
   fetchImpl?: typeof fetch;
+  /** Abort signal used to cancel an in-flight stream. */
+  signal?: AbortSignal;
 }
 
 /**
@@ -169,6 +171,7 @@ export async function* streamChat(
     model = "hermes",
     baseUrl = resolveBaseUrl(),
     fetchImpl = globalThis.fetch,
+    signal,
   } = options;
 
   const url = `${baseUrl}/v1/chat/completions`;
@@ -181,6 +184,7 @@ export async function* streamChat(
       ...resolveAuthHeader(),
     },
     body: JSON.stringify({ model, messages, stream: true }),
+    signal,
   });
 
   await assertOk(response);
@@ -248,6 +252,75 @@ interface ClientOptions {
   baseUrl?: string;
   /** Custom `fetch` implementation for unit testing. */
   fetchImpl?: typeof fetch;
+}
+
+/**
+ * Call a Hermes tool by name with JSON arguments.
+ *
+ * @param name - Tool name to invoke (for example, "file").
+ * @param args - JSON-serializable argument payload.
+ * @param opts - {@link ClientOptions}
+ * @returns Raw JSON response from the gateway.
+ * @throws {HermesApiError} On non-2xx responses.
+ */
+export async function callTool(
+  name: string,
+  args: Record<string, unknown>,
+  opts: ClientOptions = {}
+): Promise<unknown> {
+  const baseUrl = opts.baseUrl ?? resolveBaseUrl();
+  const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
+
+  const response = await fetchImpl(`${baseUrl}/v1/tools/call`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...resolveAuthHeader(),
+    },
+    body: JSON.stringify({ name, arguments: args }),
+  });
+  await assertOk(response);
+  return response.json() as Promise<unknown>;
+}
+
+/**
+ * List models exposed by the Hermes gateway.
+ *
+ * Supports common response shapes:
+ * - string[] (`["hermes", "gpt-4o"]`)
+ * - object[] with `.id`/`.name`
+ * - OpenAI-style `{ data: [{ id: "..." }] }`
+ */
+export async function listModels(opts: ClientOptions = {}): Promise<string[]> {
+  const baseUrl = opts.baseUrl ?? resolveBaseUrl();
+  const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
+
+  const response = await fetchImpl(`${baseUrl}/v1/models`, {
+    headers: { ...resolveAuthHeader() },
+  });
+  await assertOk(response);
+  const payload = (await response.json()) as unknown;
+
+  const values = Array.isArray(payload)
+    ? payload
+    : payload &&
+        typeof payload === "object" &&
+        Array.isArray((payload as Record<string, unknown>).data)
+      ? ((payload as Record<string, unknown>).data as unknown[])
+      : [];
+
+  const models = values
+    .map((value) => {
+      if (typeof value === "string") return value;
+      if (!value || typeof value !== "object") return null;
+      const id = (value as Record<string, unknown>).id;
+      if (typeof id === "string" && id.trim()) return id;
+      const name = (value as Record<string, unknown>).name;
+      return typeof name === "string" && name.trim() ? name : null;
+    })
+    .filter((model): model is string => Boolean(model));
+
+  return Array.from(new Set(models));
 }
 
 /**

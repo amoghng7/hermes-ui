@@ -1,53 +1,159 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
 import { ThreadList } from "@/components/chat/ThreadList";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { MessageList } from "@/components/chat/MessageList";
+import { streamChat } from "@/lib/hermesClient";
+import { useActiveSession, useIsStreaming, useMessages } from "@/store/hooks";
+import { useHermesStore } from "@/store/hermesStore";
+import type { Message } from "@/types/hermes";
 
-const agents = [
-  {
-    name: "Architect",
-    role: "System Design & Schema",
-    status: "SYNTHESIZING",
-    active: true,
-    icon: "architecture",
-    colorClass: "text-primary",
-    dotClass: "bg-primary",
-  },
-  {
-    name: "Lead Dev",
-    role: "Core Logic Implementation",
-    status: "IDLE",
-    active: false,
-    icon: "code",
-    colorClass: "text-text-muted",
-    dotClass: "bg-text-muted",
-  },
-  {
-    name: "Reviewer",
-    role: "Quality Assurance & Linting",
-    status: "RUNNING",
-    active: true,
-    icon: "rate_review",
-    colorClass: "text-secondary",
-    dotClass: "bg-secondary",
-  },
-];
+function makeMessageId(prefix: string): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 export default function HomePage() {
+  const activeSession = useActiveSession();
+  const activeSessionId = activeSession?.id ?? null;
+  const messages = useMessages(activeSessionId);
+  const isStreaming = useIsStreaming(activeSessionId);
+  const appendMessage = useHermesStore((state) => state.appendMessage);
+  const finalizeMessage = useHermesStore((state) => state.finalizeMessage);
+  const createSession = useHermesStore((state) => state.createSession);
+
+  const [model, setModel] = useState("hermes");
+  const [isSending, setIsSending] = useState(false);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const sendingRef = useRef(false);
+  const abortRef = useRef<AbortController | null>(null);
+  const streamRunIdRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      streamRunIdRef.current += 1;
+      abortRef.current?.abort();
+      abortRef.current = null;
+      sendingRef.current = false;
+      setIsSending(false);
+    };
+  }, [activeSessionId]);
+
+  const handleSend = async (text: string): Promise<void> => {
+    if (!activeSessionId || sendingRef.current) {
+      // Throw so ChatInput can restore composer text on rejected sends.
+      throw new Error("A message is already being sent.");
+    }
+
+    const runId = streamRunIdRef.current + 1;
+    streamRunIdRef.current = runId;
+    abortRef.current?.abort();
+    const abortController = new AbortController();
+    abortRef.current = abortController;
+    sendingRef.current = true;
+    setIsSending(true);
+    const createdAt = new Date().toISOString();
+    const userMessageId = makeMessageId("user");
+    const assistantMessageId = makeMessageId("assistant");
+    const sessionId = activeSessionId;
+
+    const userMessage: Message = {
+      id: userMessageId,
+      sessionId,
+      role: "user",
+      content: text,
+      createdAt,
+    };
+    appendMessage(sessionId, userMessage);
+    finalizeMessage(sessionId, userMessageId);
+
+    const history = (useHermesStore.getState().messagesBySession[sessionId] ?? []).map(
+      (message) => ({ role: message.role, content: message.content })
+    );
+
+    let assistantContent = "";
+    appendMessage(sessionId, {
+      id: assistantMessageId,
+      sessionId,
+      role: "assistant",
+      content: assistantContent,
+      createdAt,
+    });
+
+    try {
+      for await (const delta of streamChat({
+        messages: history,
+        model,
+        signal: abortController.signal,
+      })) {
+        if (streamRunIdRef.current !== runId || abortController.signal.aborted) {
+          finalizeMessage(sessionId, assistantMessageId);
+          return;
+        }
+        assistantContent += delta.content;
+        appendMessage(sessionId, {
+          id: assistantMessageId,
+          sessionId,
+          role: "assistant",
+          content: assistantContent,
+          createdAt,
+        });
+      }
+    } catch (error) {
+      if (!abortController.signal.aborted) {
+        const errorText =
+          error instanceof Error ? error.message : "Unable to stream response from Hermes.";
+        appendMessage(sessionId, {
+          id: assistantMessageId,
+          sessionId,
+          role: "assistant",
+          content: assistantContent || `⚠ ${errorText}`,
+          createdAt,
+        });
+      }
+    } finally {
+      finalizeMessage(sessionId, assistantMessageId);
+      if (streamRunIdRef.current === runId) {
+        setIsSending(false);
+        sendingRef.current = false;
+        if (abortRef.current === abortController) {
+          abortRef.current = null;
+        }
+      }
+    }
+  };
+
+  const handleCreateSession = async () => {
+    if (isCreatingSession) return;
+    setIsCreatingSession(true);
+    try {
+      await createSession("New Hermes chat");
+    } finally {
+      setIsCreatingSession(false);
+    }
+  };
+
   return (
     <div className="flex-1 flex gap-6 box-border fluid-main-margin">
       <ThreadList />
 
-      {/* Center chat section */}
       <section aria-label="Chat" className="flex-1 flex flex-col glass-panel rounded-3xl overflow-hidden relative responsive-panel">
         <div className="p-8 border-b border-border-subtle flex justify-between items-center bg-surface-container/20">
           <div>
             <h2 className="font-h1 text-2xl font-semibold text-on-surface">
-              Building a CRM website
+              {activeSession?.title ?? "Hermes Chat"}
             </h2>
             <p className="text-[0.8125rem] text-text-muted mt-1">
-              Initiated 2 hours ago · 7 active agents
+              {activeSessionId
+                ? "Live streaming enabled"
+                : "Create or select a session to start chatting"}
             </p>
           </div>
           <button
+            type="button"
             aria-label="Share thread"
             className="bg-surface-container p-3 rounded-xl hover:bg-primary/10 border border-border-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
@@ -55,91 +161,35 @@ export default function HomePage() {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-8 flex flex-col gap-8 custom-scrollbar">
-          {/* User message */}
-          <div className="flex justify-end">
-            <div className="max-w-[85%] bg-surface-container-high rounded-3xl p-6 border border-border-subtle">
-              <p className="text-[1rem] text-on-surface">
-                Build a CRM website for me
+        {activeSessionId ? (
+          <MessageList messages={messages} isStreaming={isStreaming || isSending} />
+        ) : (
+          <div className="flex-1 p-8 flex items-center justify-center">
+            <div className="max-w-lg text-center">
+              <h3 className="text-xl font-semibold text-on-surface">No active session</h3>
+              <p className="text-sm text-text-muted mt-2">
+                Start a fresh conversation to begin streaming responses from Hermes.
               </p>
-            </div>
-          </div>
-
-          {/* Assistant message with agent cards */}
-          <div className="flex gap-4">
-            <div
-              className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center shrink-0"
-              aria-hidden="true"
-            >
-              <span className="material-symbols-outlined text-on-primary-container">smart_toy</span>
-            </div>
-            <div className="flex-1">
-              <p className="text-[1rem] text-on-surface leading-relaxed mb-4">
-                Spinning up 6 agents to work in parallel on your request:
-              </p>
-
-              <ul
-                aria-label="Active agents"
-                className="flex flex-col gap-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar mb-6 list-none"
+              <button
+                type="button"
+                onClick={() => void handleCreateSession()}
+                disabled={isCreatingSession}
+                className="mt-6 px-4 py-2 rounded-xl bg-primary text-white hover:opacity-90 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
-                {agents.map((agent) => (
-                  <li
-                    key={agent.name}
-                    className={[
-                      "agent-card flex items-center gap-4 p-4 rounded-2xl",
-                      agent.active ? "opacity-100" : "opacity-70",
-                    ].join(" ")}
-                  >
-                    <div
-                      className={[
-                        "w-10 h-10 rounded-full border flex items-center justify-center",
-                        agent.active
-                          ? "border-primary/30 bg-primary-container/20"
-                          : "border-border-subtle bg-surface-container",
-                      ].join(" ")}
-                      aria-hidden="true"
-                    >
-                      <span className="material-symbols-outlined text-primary text-sm">
-                        {agent.icon}
-                      </span>
-                    </div>
-                    <div className="flex-1">
-                      <div className="font-medium text-[0.9375rem] text-on-surface">
-                        {agent.name}
-                      </div>
-                      <div className="text-[0.8125rem] text-text-muted">
-                        {agent.role}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2" aria-label={`Status: ${agent.status}`}>
-                      <span
-                        className={[
-                          "w-2 h-2 rounded-full",
-                          agent.dotClass,
-                          agent.active ? "animate-pulse" : "",
-                        ].join(" ")}
-                        aria-hidden="true"
-                      />
-                      <span
-                        className={[
-                          "text-[0.6875rem] font-bold uppercase tracking-wider",
-                          agent.colorClass,
-                        ].join(" ")}
-                      >
-                        {agent.status}
-                      </span>
-                    </div>
-                  </li>
-                ))}
-              </ul>
+                {isCreatingSession ? "Creating..." : "Start new session"}
+              </button>
             </div>
           </div>
-        </div>
+        )}
 
-        <ChatInput />
+        <ChatInput
+          onSend={handleSend}
+          disabled={!activeSessionId || isStreaming || isSending}
+          model={model}
+          onModelChange={setModel}
+        />
       </section>
 
-      {/* Right swarm panel */}
       <aside
         aria-label="Swarm topology"
         className="hidden xl:flex xl:w-[35%] glass-panel rounded-3xl flex-col overflow-hidden relative"
