@@ -39,16 +39,20 @@ export function AskUserDialog({
 
   // Trigger slide-up animation on mount and move keyboard focus into the dialog
   // so users don't lose their focus target when ChatInput is removed from the DOM.
+  // The nested rAF ensures focus fires after React has committed the state update
+  // from setVisible(true) and the browser has painted the transition start.
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
+    const outer = requestAnimationFrame(() => {
       setVisible(true);
-      if (allowCustom) {
-        customInputRef.current?.focus();
-      } else {
-        containerRef.current?.focus();
-      }
+      requestAnimationFrame(() => {
+        if (allowCustom) {
+          customInputRef.current?.focus();
+        } else {
+          containerRef.current?.focus();
+        }
+      });
     });
-    return () => cancelAnimationFrame(id);
+    return () => cancelAnimationFrame(outer);
   }, [allowCustom]);
 
   const animateOut = (callback: () => void) => {

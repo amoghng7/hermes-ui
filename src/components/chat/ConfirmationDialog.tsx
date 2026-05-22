@@ -33,12 +33,16 @@ export function ConfirmationDialog({
 
   // Trigger slide-up animation on mount and focus the Deny button so keyboard
   // users have a clear, safe default focus target when the dialog opens.
+  // The nested rAF ensures focus fires after React has committed the state update
+  // from setVisible(true) and the browser has painted the transition start.
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
+    const outer = requestAnimationFrame(() => {
       setVisible(true);
-      denyButtonRef.current?.focus();
+      requestAnimationFrame(() => {
+        denyButtonRef.current?.focus();
+      });
     });
-    return () => cancelAnimationFrame(id);
+    return () => cancelAnimationFrame(outer);
   }, []);
 
   const animateOut = (callback: () => void) => {

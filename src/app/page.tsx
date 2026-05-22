@@ -260,8 +260,8 @@ export default function HomePage() {
       // When found, strip the raw JSON block from the stored message content so
       // protocol internals are not visible in the chat transcript.
       if (streamRunIdRef.current === runId) {
-        const askUser = detectAskUser(assistantContent);
-        if (askUser) {
+        // Strip the trailing JSON marker and persist the cleaned content to the store.
+        const applyMarkerStrip = () => {
           assistantContent = stripTrailingJson(assistantContent);
           appendMessage(sessionId, {
             id: assistantMessageId,
@@ -270,18 +270,16 @@ export default function HomePage() {
             content: assistantContent,
             createdAt,
           });
+        };
+
+        const askUser = detectAskUser(assistantContent);
+        if (askUser) {
+          applyMarkerStrip();
           setPendingAskUser(askUser);
         } else {
           const confirmation = detectConfirmation(assistantContent);
           if (confirmation) {
-            assistantContent = stripTrailingJson(assistantContent);
-            appendMessage(sessionId, {
-              id: assistantMessageId,
-              sessionId,
-              role: "assistant",
-              content: assistantContent,
-              createdAt,
-            });
+            applyMarkerStrip();
             setPendingConfirmation(confirmation);
           }
         }
