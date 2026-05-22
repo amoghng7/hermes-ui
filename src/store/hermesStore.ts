@@ -80,6 +80,11 @@ export interface HermesActions {
   setActiveSession(id: string): void;
 
   /**
+   * Clear the active session (e.g. when navigating to the home route).
+   */
+  clearActiveSession(): void;
+
+  /**
    * Add a completed user message without touching streaming state.
    * Use this instead of `appendMessage` for user-authored messages.
    */
@@ -215,6 +220,10 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
     set((state) => ({
       messagesBySession: { ...state.messagesBySession, [id]: [] },
     }));
+  },
+
+  clearActiveSession() {
+    set({ activeSessionId: null });
   },
 
   addUserMessage(sessionId: string, message: Message) {

@@ -55,7 +55,7 @@ export function HermesProvider({ children }: HermesProviderProps) {
       if (!mounted) return;
       void poll();
       intervalId = setInterval(() => { void poll(); }, POLL_INTERVAL_MS);
-    }).catch(() => {/* bootstrapStore is already error-safe */});
+    }).catch(() => undefined);
 
     return () => {
       mounted = false;
