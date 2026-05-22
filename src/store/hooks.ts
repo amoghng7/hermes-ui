@@ -8,13 +8,15 @@
  * @module store/hooks
  */
 
+import { useMemo } from "react";
 import { useHermesStore } from "@/store/hermesStore";
-import type { Agent, MemoryEntry, Message, Profile, Session } from "@/types/hermes";
+import type { Agent, MemoryEntry, Message, Profile, Session, ToolCall } from "@/types/hermes";
 
 // Stable empty arrays — returned instead of `[]` literals so that
 // components don't re-render on every unrelated store update.
 const EMPTY_MESSAGES: Message[] = [];
 const EMPTY_AGENTS: Agent[] = [];
+const EMPTY_TOOL_CALLS: ToolCall[] = [];
 
 // ---------------------------------------------------------------------------
 // Profiles
@@ -90,4 +92,50 @@ export function useAgents(sessionId: string | null): Agent[] {
 /** Returns the memory entries for the active profile. */
 export function useMemory(): MemoryEntry[] {
   return useHermesStore((s) => s.memory);
+}
+
+// ---------------------------------------------------------------------------
+// Tool Calls
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the tool calls for a given session.
+ * Returns an empty array when no tool calls have been loaded.
+ */
+export function useToolCalls(sessionId: string | null): ToolCall[] {
+  return useHermesStore((s) =>
+    sessionId ? (s.toolCallsBySession[sessionId] ?? EMPTY_TOOL_CALLS) : EMPTY_TOOL_CALLS
+  );
+}
+
+/**
+ * Groups session-level tool calls by the assistant message they followed,
+ * matching each call to the latest assistant message created before `calledAt`.
+ * Returns a stable `Record<messageId, ToolCall[]>` suitable for `MessageList`.
+ */
+export function useToolCallsByMessage(
+  sessionId: string | null,
+  messages: Message[]
+): Record<string, ToolCall[]> {
+  const toolCalls = useToolCalls(sessionId);
+  return useMemo(() => {
+    if (toolCalls.length === 0) return {};
+    const assistantMessages = messages.filter((m) => m.role === "assistant");
+    if (assistantMessages.length === 0) return {};
+    const result: Record<string, ToolCall[]> = {};
+    for (const call of toolCalls) {
+      const calledAt = new Date(call.calledAt).getTime();
+      let best: Message | null = null;
+      for (const msg of assistantMessages) {
+        const msgTime = new Date(msg.createdAt).getTime();
+        if (msgTime <= calledAt && (!best || new Date(best.createdAt).getTime() < msgTime)) {
+          best = msg;
+        }
+      }
+      if (best) {
+        (result[best.id] ??= []).push(call);
+      }
+    }
+    return result;
+  }, [toolCalls, messages]);
 }

@@ -5,7 +5,7 @@ import { ThreadList } from "@/components/chat/ThreadList";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { MessageList } from "@/components/chat/MessageList";
 import { streamChat } from "@/lib/hermesClient";
-import { useActiveSession, useIsStreaming, useMessages } from "@/store/hooks";
+import { useActiveSession, useIsStreaming, useMessages, useToolCallsByMessage } from "@/store/hooks";
 import { useHermesStore } from "@/store/hermesStore";
 import type { Message } from "@/types/hermes";
 
@@ -21,6 +21,7 @@ export default function HomePage() {
   const activeSessionId = activeSession?.id ?? null;
   const messages = useMessages(activeSessionId);
   const isStreaming = useIsStreaming(activeSessionId);
+  const toolCallsByMessage = useToolCallsByMessage(activeSessionId, messages);
   const appendMessage = useHermesStore((state) => state.appendMessage);
   const finalizeMessage = useHermesStore((state) => state.finalizeMessage);
   const createSession = useHermesStore((state) => state.createSession);
@@ -162,7 +163,7 @@ export default function HomePage() {
         </div>
 
         {activeSessionId ? (
-          <MessageList messages={messages} isStreaming={isStreaming || isSending} />
+          <MessageList messages={messages} isStreaming={isStreaming || isSending} toolCallsByMessage={toolCallsByMessage} />
         ) : (
           <div className="flex-1 p-8 flex items-center justify-center">
             <div className="max-w-lg text-center">

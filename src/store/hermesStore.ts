@@ -9,7 +9,7 @@
  */
 
 import { create } from "zustand";
-import type { Agent, MemoryEntry, McpServer, Message, Profile, Session, Skill } from "@/types/hermes";
+import type { Agent, MemoryEntry, McpServer, Message, Profile, Session, Skill, ToolCall } from "@/types/hermes";
 import {
   listProfiles,
   listSessions,
@@ -35,6 +35,8 @@ export interface HermesState {
   streamingMessageId: string | null;
   /** Swarm agents keyed by sessionId. */
   agents: Record<string, Agent[]>;
+  /** Tool calls keyed by sessionId. */
+  toolCallsBySession: Record<string, ToolCall[]>;
   skills: Skill[];
   mcpServers: McpServer[];
   memory: MemoryEntry[];
@@ -80,6 +82,11 @@ export interface HermesActions {
    */
   finalizeMessage(sessionId: string, messageId: string): void;
 
+  /**
+   * Store tool calls for a session (replaces any previously cached calls).
+   */
+  setToolCalls(sessionId: string, calls: ToolCall[]): void;
+
   // Internal helpers exposed for testing / direct use
   _setSessions(sessions: Session[]): void;
   _setMemory(memory: MemoryEntry[]): void;
@@ -100,6 +107,7 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
   streamingSessionId: null,
   streamingMessageId: null,
   agents: {},
+  toolCallsBySession: {},
   skills: [],
   mcpServers: [],
   memory: [],
@@ -133,11 +141,15 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
 
   async deleteSession(id: string) {
     await apiDeleteSession(id);
-    set((state) => ({
-      sessions: state.sessions.filter((s) => s.id !== id),
-      activeSessionId:
-        state.activeSessionId === id ? null : state.activeSessionId,
-    }));
+    set((state) => {
+      const { [id]: _toolCalls, ...remainingToolCalls } = state.toolCallsBySession;
+      return {
+        sessions: state.sessions.filter((s) => s.id !== id),
+        activeSessionId:
+          state.activeSessionId === id ? null : state.activeSessionId,
+        toolCallsBySession: remainingToolCalls,
+      };
+    });
   },
 
   setActiveSession(id: string) {
@@ -197,6 +209,12 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
   _setAgents(sessionId: string, agents: Agent[]) {
     set((state) => ({
       agents: { ...state.agents, [sessionId]: agents },
+    }));
+  },
+
+  setToolCalls(sessionId: string, calls: ToolCall[]) {
+    set((state) => ({
+      toolCallsBySession: { ...state.toolCallsBySession, [sessionId]: calls },
     }));
   },
 }));
