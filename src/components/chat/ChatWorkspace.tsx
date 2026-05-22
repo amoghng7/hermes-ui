@@ -224,7 +224,10 @@ export function ChatWorkspace() {
   }, [activeSessionId, setPendingAskUser, setPendingConfirmation]);
 
   const handleSend = async (text: string): Promise<void> => {
-    if (!activeSessionId || sendingRef.current) {
+    if (!activeSessionId) {
+      throw new Error("No active session. Please select or create a conversation first.");
+    }
+    if (sendingRef.current) {
       throw new Error("Please wait for the current message to finish sending before sending another.");
     }
 

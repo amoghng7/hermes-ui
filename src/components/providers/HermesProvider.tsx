@@ -26,14 +26,19 @@ export function HermesProvider({ children }: HermesProviderProps) {
   useEffect(() => {
     bootstrapStore();
 
+    let isPolling = false;
     const poll = async () => {
+      if (isPolling) return;
+      isPolling = true;
       const { activeProfileId, _setSessions } = useHermesStore.getState();
-      if (!activeProfileId) return;
+      if (!activeProfileId) { isPolling = false; return; }
       try {
         const sessions = await listSessions(activeProfileId);
         _setSessions(sessions);
       } catch {
         // Silently tolerate gateway errors during background polling.
+      } finally {
+        isPolling = false;
       }
     };
 

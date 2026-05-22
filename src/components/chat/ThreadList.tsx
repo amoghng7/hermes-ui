@@ -60,12 +60,15 @@ function groupSessions(sessions: Session[]): Map<DateGroup, Session[]> {
   return map;
 }
 
-/** Returns a truncated preview of the last message, or null if unavailable / blank. */
+/** Returns a truncated preview of the last message (with ellipsis if clipped), or null if unavailable / blank. */
 function getLastMessagePreview(
   messages: { content?: string }[] | undefined,
 ): string | null {
   const text = messages?.at(-1)?.content?.trim();
-  return text ? text.slice(0, MESSAGE_PREVIEW_MAX_LENGTH) : null;
+  if (!text) return null;
+  return text.length > MESSAGE_PREVIEW_MAX_LENGTH
+    ? `${text.slice(0, MESSAGE_PREVIEW_MAX_LENGTH)}…`
+    : text;
 }
 
 // ---------------------------------------------------------------------------
@@ -225,7 +228,7 @@ export const ThreadList: React.FC = () => {
   const router = useRouter();
   // Try to read current session from URL (works both on / and /s/[sessionId])
   const params = useParams<{ sessionId?: string }>();
-  const urlSessionId = params?.sessionId ?? null;
+  const urlSessionId = params.sessionId ?? null;
 
   const [search, setSearch] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -243,7 +246,7 @@ export const ThreadList: React.FC = () => {
   // Focus rename input when editing begins
   useEffect(() => {
     if (renamingId) {
-      setTimeout(() => renameInputRef.current?.focus(), 0);
+      requestAnimationFrame(() => renameInputRef.current?.focus());
     }
   }, [renamingId]);
 
@@ -304,13 +307,16 @@ export const ThreadList: React.FC = () => {
     [handleRenameSubmit]
   );
 
+  // Pre-compute lowercase search term to avoid repeated .toLowerCase() per session/message.
+  const searchLower = search.trim().toLowerCase();
+
   // Filter sessions by search query
-  const filtered = search.trim()
+  const filtered = searchLower
     ? sessions.filter(
         (s) =>
-          s.title.toLowerCase().includes(search.toLowerCase()) ||
+          s.title.toLowerCase().includes(searchLower) ||
           (messagesBySession[s.id] ?? []).some((m) =>
-            m.content.toLowerCase().includes(search.toLowerCase())
+            m.content.toLowerCase().includes(searchLower)
           )
       )
     : sessions;
