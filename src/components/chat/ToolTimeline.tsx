@@ -7,7 +7,7 @@ export interface ToolTimelineProps {
   toolCalls: ToolCall[];
 }
 
-/** Max characters to show in result snippet before truncating */
+/** Max characters to show in result snippet before truncating. Keeps the timeline compact without losing all context. */
 const RESULT_TRUNCATE_LENGTH = 800;
 
 type ToolStatus = "running" | "success" | "error";

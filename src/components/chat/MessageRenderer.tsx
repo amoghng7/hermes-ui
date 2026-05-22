@@ -193,7 +193,6 @@ export function MessageRenderer({ message, toolCalls, isStreaming }: MessageRend
     }
 
     // Try todo checklist (JSON { type/tool: "todo", items: [...] } or GFM task list)
-    // Try todo checklist (JSON { type/tool: "todo", items: [...] } or GFM task list)
     let todoItems: import("./TodoChecklist").TodoItem[] | null = null;
     try {
       const parsed = JSON.parse(content) as unknown;
@@ -214,7 +213,7 @@ export function MessageRenderer({ message, toolCalls, isStreaming }: MessageRend
               return {
                 id: String(o["id"] ?? idx),
                 label: String(o["text"] ?? o["content"] ?? o["label"] ?? ""),
-                checked: Boolean(o["checked"] ?? o["done"] ?? false),
+                checked: (o["checked"] ?? o["done"] ?? false) === true,
               };
             }
             return { id: String(idx), label: String(item), checked: false };

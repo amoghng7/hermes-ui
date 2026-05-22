@@ -117,7 +117,7 @@ export function parseTerminalContent(content: string): {
       const p = parsed as Record<string, unknown>;
       if (typeof p["output"] === "string" || typeof p["stdout"] === "string") {
         return {
-          output: (typeof p["output"] === "string" ? p["output"] : (typeof p["stdout"] === "string" ? p["stdout"] : "")) ?? "",
+          output: (typeof p["output"] === "string" ? p["output"] : typeof p["stdout"] === "string" ? p["stdout"] : "") ?? "",
           exitCode: typeof p["exit_code"] === "number" ? p["exit_code"] : undefined,
           command: typeof p["command"] === "string" ? p["command"] : undefined,
         };
