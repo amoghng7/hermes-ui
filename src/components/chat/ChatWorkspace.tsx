@@ -50,6 +50,8 @@ function findTrailingJsonBlock(
 ): { start: number; end: number; parsed: Record<string, unknown> } | null {
   // Collect all closing-brace positions in one forward pass so we can iterate
   // backwards without repeated string scans when multiple closing braces are tried.
+  // Braces that fall inside string literals are included but are safely ignored by
+  // the inString tracking in the inner backward scan below.
   const closingBraces: number[] = [];
   for (let i = 0; i < content.length; i++) {
     if (content[i] === "}") closingBraces.push(i);
@@ -97,7 +99,7 @@ function findTrailingJsonBlock(
               };
             }
           } catch {
-            // Not valid JSON — try an earlier closing brace.
+            // Not valid JSON — try the next earlier closing brace.
           }
           break;
         }
