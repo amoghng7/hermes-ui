@@ -420,7 +420,7 @@ export const ThreadList: React.FC = () => {
                     session={session}
                     isActive={currentActiveId === session.id}
                     lastMessagePreview={
-                      (messagesBySession[session.id] ?? []).at(-1)?.content?.slice(0, MESSAGE_PREVIEW_MAX_LENGTH) ?? null
+                      (messagesBySession[session.id] ?? []).at(-1)?.content?.slice(0, MESSAGE_PREVIEW_MAX_LENGTH) || null
                     }
                     onSelect={handleSelect}
                     onRename={handleRenameStart}

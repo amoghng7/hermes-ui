@@ -105,9 +105,10 @@ function stripTrailingJson(content: string): string {
   const result = findTrailingJsonBlock(content);
   if (!result) return content;
 
-  const blockEnd = content.lastIndexOf("}", result.start);
-  const blockLength = blockEnd - result.start + 1;
-  const afterBlock = content.slice(result.start).slice(blockLength);
+  // The block ends at the last "}" in the full content string
+  // (same lastClose used internally by findTrailingJsonBlock).
+  const blockEnd = content.lastIndexOf("}");
+  const afterBlock = content.slice(blockEnd + 1);
   if (afterBlock.trim().length > 0) return content;
 
   return content.slice(0, result.start).trimEnd();
