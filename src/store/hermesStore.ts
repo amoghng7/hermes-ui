@@ -140,6 +140,8 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
 
   async setActiveProfile(id: string) {
     set({ activeProfileId: id, sessions: [], activeSessionId: null, memory: [], streamingSessionId: null, streamingMessageId: null });
+    // Promise.allSettled ensures sessions still load even if the memory
+    // endpoint is unavailable (e.g. 404 for a new profile).
     const [sessionsResult, memoryResult] = await Promise.allSettled([
       listSessions(id),
       getMemory(id),

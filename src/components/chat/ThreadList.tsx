@@ -6,6 +6,9 @@ import { useSessions } from "@/store/hooks";
 import { useHermesStore } from "@/store/hermesStore";
 import type { Session } from "@/types/hermes";
 
+// Maximum characters shown as last-message preview in each session item.
+const MESSAGE_PREVIEW_MAX_LENGTH = 80;
+
 // ---------------------------------------------------------------------------
 // Date helpers
 // ---------------------------------------------------------------------------
@@ -417,7 +420,7 @@ export const ThreadList: React.FC = () => {
                     session={session}
                     isActive={currentActiveId === session.id}
                     lastMessagePreview={
-                      (messagesBySession[session.id] ?? []).at(-1)?.content?.slice(0, 80) ?? null
+                      (messagesBySession[session.id] ?? []).at(-1)?.content?.slice(0, MESSAGE_PREVIEW_MAX_LENGTH) ?? null
                     }
                     onSelect={handleSelect}
                     onRename={handleRenameStart}

@@ -105,9 +105,9 @@ function stripTrailingJson(content: string): string {
   const result = findTrailingJsonBlock(content);
   if (!result) return content;
 
-  const afterBlock = content.slice(result.start).slice(
-    content.lastIndexOf("}", result.start) - result.start + 1,
-  );
+  const blockEnd = content.lastIndexOf("}", result.start);
+  const blockLength = blockEnd - result.start + 1;
+  const afterBlock = content.slice(result.start).slice(blockLength);
   if (afterBlock.trim().length > 0) return content;
 
   return content.slice(0, result.start).trimEnd();
@@ -224,7 +224,7 @@ export function ChatWorkspace() {
 
   const handleSend = async (text: string): Promise<void> => {
     if (!activeSessionId || sendingRef.current) {
-      throw new Error("A message is already being sent.");
+      throw new Error("Please wait for the current message to finish sending before sending another.");
     }
 
     const runId = streamRunIdRef.current + 1;

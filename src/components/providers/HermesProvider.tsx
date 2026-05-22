@@ -37,6 +37,8 @@ export function HermesProvider({ children }: HermesProviderProps) {
       }
     };
 
+    // Poll immediately on mount so the sidebar is fresh without waiting 30 s.
+    void poll();
     const id = setInterval(() => { void poll(); }, POLL_INTERVAL_MS);
     return () => clearInterval(id);
   }, []);
