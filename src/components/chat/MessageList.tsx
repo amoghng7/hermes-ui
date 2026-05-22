@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Message } from "@/types/hermes";
+import type { Message, ToolCall } from "@/types/hermes";
+import { MessageRenderer } from "@/components/chat/MessageRenderer";
 
 interface MessageListProps {
   messages: Message[];
   isStreaming: boolean;
+  toolCallsByMessage?: Record<string, ToolCall[]>;
 }
 
-export function MessageList({ messages, isStreaming }: MessageListProps) {
+export function MessageList({ messages, isStreaming, toolCallsByMessage = {} }: MessageListProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [stickToBottom, setStickToBottom] = useState(true);
 
@@ -65,10 +67,9 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
     >
       {messages.map((message) => {
         const isUser = message.role === "user";
-        const showStreamingCursor =
-          isStreaming &&
-          !isUser &&
-          message.id === lastAssistantMessageId;
+        const isLastAssistant = message.id === lastAssistantMessageId;
+        const showStreamingCursor = isStreaming && !isUser && isLastAssistant;
+        const msgToolCalls = toolCallsByMessage[message.id] ?? [];
 
         return (
           <div key={message.id} className={isUser ? "flex justify-end" : "flex gap-4"}>
@@ -87,12 +88,11 @@ export function MessageList({ messages, isStreaming }: MessageListProps) {
                   : "max-w-[85%] bg-surface-container rounded-3xl p-6 border border-border-subtle"
               }
             >
-              <p className="text-[1rem] text-on-surface whitespace-pre-wrap break-words">
-                {message.content}
-                {showStreamingCursor && (
-                  <span className="inline-block w-[0.5ch] animate-pulse">▍</span>
-                )}
-              </p>
+              <MessageRenderer
+                message={message}
+                toolCalls={msgToolCalls}
+                isStreaming={showStreamingCursor}
+              />
             </div>
           </div>
         );

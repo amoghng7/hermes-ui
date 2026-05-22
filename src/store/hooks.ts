@@ -9,12 +9,13 @@
  */
 
 import { useHermesStore } from "@/store/hermesStore";
-import type { Agent, MemoryEntry, Message, Profile, Session } from "@/types/hermes";
+import type { Agent, MemoryEntry, Message, Profile, Session, ToolCall } from "@/types/hermes";
 
 // Stable empty arrays — returned instead of `[]` literals so that
 // components don't re-render on every unrelated store update.
 const EMPTY_MESSAGES: Message[] = [];
 const EMPTY_AGENTS: Agent[] = [];
+const EMPTY_TOOL_CALLS: ToolCall[] = [];
 
 // ---------------------------------------------------------------------------
 // Profiles
@@ -90,4 +91,18 @@ export function useAgents(sessionId: string | null): Agent[] {
 /** Returns the memory entries for the active profile. */
 export function useMemory(): MemoryEntry[] {
   return useHermesStore((s) => s.memory);
+}
+
+// ---------------------------------------------------------------------------
+// Tool Calls
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the tool calls for a given session.
+ * Returns an empty array when no tool calls have been loaded.
+ */
+export function useToolCalls(sessionId: string | null): ToolCall[] {
+  return useHermesStore((s) =>
+    sessionId ? (s.toolCallsBySession[sessionId] ?? EMPTY_TOOL_CALLS) : EMPTY_TOOL_CALLS
+  );
 }
