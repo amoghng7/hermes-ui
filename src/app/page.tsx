@@ -43,7 +43,10 @@ export default function HomePage() {
   }, [activeSessionId]);
 
   const handleSend = async (text: string): Promise<void> => {
-    if (!activeSessionId || sendingRef.current) return;
+    if (!activeSessionId || sendingRef.current) {
+      // Throw so ChatInput can restore composer text on rejected sends.
+      throw new Error("A message is already being sent.");
+    }
 
     const runId = streamRunIdRef.current + 1;
     streamRunIdRef.current = runId;
@@ -112,8 +115,8 @@ export default function HomePage() {
         });
       }
     } finally {
+      finalizeMessage(sessionId, assistantMessageId);
       if (streamRunIdRef.current === runId) {
-        finalizeMessage(sessionId, assistantMessageId);
         setIsSending(false);
         sendingRef.current = false;
         if (abortRef.current === abortController) {
