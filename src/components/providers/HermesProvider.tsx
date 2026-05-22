@@ -27,14 +27,20 @@ export function HermesProvider({ children }: HermesProviderProps) {
     bootstrapStore();
 
     let isPolling = false;
+    let pollVersion = 0;
     const poll = async () => {
       if (isPolling) return;
       isPolling = true;
+      const version = ++pollVersion;
       const { activeProfileId, _setSessions } = useHermesStore.getState();
       if (!activeProfileId) { isPolling = false; return; }
       try {
         const sessions = await listSessions(activeProfileId);
-        _setSessions(sessions);
+        // Discard results if a newer poll started or the profile changed.
+        const current = useHermesStore.getState();
+        if (version === pollVersion && current.activeProfileId === activeProfileId) {
+          _setSessions(sessions);
+        }
       } catch {
         // Silently tolerate gateway errors during background polling.
       } finally {
