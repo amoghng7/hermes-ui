@@ -176,7 +176,7 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
     set((state) => {
       const remaining = state.sessions.filter((s) => s.id !== id);
 
-      // Build remaining records without spread-destructuring (avoids unused-var lint warnings).
+      // Build remaining records by spreading and deleting the target key.
       const remainingToolCalls = { ...state.toolCallsBySession };
       delete remainingToolCalls[id];
       const remainingMessages = { ...state.messagesBySession };

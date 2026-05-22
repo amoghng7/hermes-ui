@@ -41,12 +41,13 @@ function makeMessageId(prefix: string): string {
 /**
  * Scan backwards from the final "}" in `content` using a brace-depth counter
  * that ignores braces inside JSON string values.  Returns `{ start, parsed }`
- * where `start` is the index of the opening "{" and `parsed` is the decoded
- * JSON object, or `null` if no valid JSON object is found.
+ * where `start` is the index of the opening "{", `end` is the index of the
+ * closing "}", and `parsed` is the decoded JSON object, or `null` if no valid
+ * JSON object is found.
  */
 function findTrailingJsonBlock(
   content: string,
-): { start: number; parsed: Record<string, unknown> } | null {
+): { start: number; end: number; parsed: Record<string, unknown> } | null {
   const lastClose = content.lastIndexOf("}");
   if (lastClose === -1) return null;
 
@@ -84,6 +85,7 @@ function findTrailingJsonBlock(
           ) {
             return {
               start: i,
+              end: lastClose,
               parsed: parsed as Record<string, unknown>,
             };
           }
@@ -105,10 +107,8 @@ function stripTrailingJson(content: string): string {
   const result = findTrailingJsonBlock(content);
   if (!result) return content;
 
-  // The block ends at the last "}" in the full content string
-  // (same lastClose used internally by findTrailingJsonBlock).
-  const blockEnd = content.lastIndexOf("}");
-  const afterBlock = content.slice(blockEnd + 1);
+  // Use result.end (the closing "}" index) already computed by findTrailingJsonBlock.
+  const afterBlock = content.slice(result.end + 1);
   if (afterBlock.trim().length > 0) return content;
 
   return content.slice(0, result.start).trimEnd();

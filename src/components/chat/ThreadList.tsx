@@ -60,6 +60,14 @@ function groupSessions(sessions: Session[]): Map<DateGroup, Session[]> {
   return map;
 }
 
+/** Returns a truncated preview of the last message, or null if unavailable / blank. */
+function getLastMessagePreview(
+  messages: { content?: string }[] | undefined,
+): string | null {
+  const text = messages?.at(-1)?.content?.trim();
+  return text ? text.slice(0, MESSAGE_PREVIEW_MAX_LENGTH) : null;
+}
+
 // ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
@@ -420,7 +428,7 @@ export const ThreadList: React.FC = () => {
                     session={session}
                     isActive={currentActiveId === session.id}
                     lastMessagePreview={
-                      (messagesBySession[session.id] ?? []).at(-1)?.content?.slice(0, MESSAGE_PREVIEW_MAX_LENGTH) || null
+                      getLastMessagePreview(messagesBySession[session.id])
                     }
                     onSelect={handleSelect}
                     onRename={handleRenameStart}
