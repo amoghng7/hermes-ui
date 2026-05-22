@@ -80,6 +80,12 @@ export interface HermesActions {
   setActiveSession(id: string): void;
 
   /**
+   * Add a completed user message without touching streaming state.
+   * Use this instead of `appendMessage` for user-authored messages.
+   */
+  addUserMessage(sessionId: string, message: Message): void;
+
+  /**
    * Append a partial message token during SSE streaming.
    * Creates the message entry on first call for a given messageId.
    */
@@ -209,6 +215,15 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
     set((state) => ({
       messagesBySession: { ...state.messagesBySession, [id]: [] },
     }));
+  },
+
+  addUserMessage(sessionId: string, message: Message) {
+    set((state) => {
+      const existing = state.messagesBySession[sessionId] ?? [];
+      return {
+        messagesBySession: { ...state.messagesBySession, [sessionId]: [...existing, message] },
+      };
+    });
   },
 
   appendMessage(sessionId: string, message: Message) {

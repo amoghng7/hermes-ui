@@ -24,21 +24,22 @@ interface HermesProviderProps {
 
 export function HermesProvider({ children }: HermesProviderProps) {
   useEffect(() => {
-    bootstrapStore();
-
+    let mounted = true;
     let isPolling = false;
     let pollVersion = 0;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
     const poll = async () => {
-      if (isPolling) return;
+      if (!mounted || isPolling) return;
       isPolling = true;
       const version = ++pollVersion;
       const { activeProfileId, _setSessions } = useHermesStore.getState();
       if (!activeProfileId) { isPolling = false; return; }
       try {
         const sessions = await listSessions(activeProfileId);
-        // Discard results if a newer poll started or the profile changed.
+        // Discard results if unmounted, a newer poll started, or the profile changed.
         const current = useHermesStore.getState();
-        if (version === pollVersion && current.activeProfileId === activeProfileId) {
+        if (mounted && version === pollVersion && current.activeProfileId === activeProfileId) {
           _setSessions(sessions);
         }
       } catch {
@@ -48,10 +49,18 @@ export function HermesProvider({ children }: HermesProviderProps) {
       }
     };
 
-    // Poll immediately on mount so the sidebar is fresh without waiting 30 s.
-    void poll();
-    const id = setInterval(() => { void poll(); }, POLL_INTERVAL_MS);
-    return () => clearInterval(id);
+    // Await bootstrap before polling so the first poll finds a valid activeProfileId.
+    // bootstrapStore() already handles its own errors internally.
+    bootstrapStore().then(() => {
+      if (!mounted) return;
+      void poll();
+      intervalId = setInterval(() => { void poll(); }, POLL_INTERVAL_MS);
+    }).catch(() => {/* bootstrapStore is already error-safe */});
+
+    return () => {
+      mounted = false;
+      if (intervalId !== null) clearInterval(intervalId);
+    };
   }, []);
 
   return <>{children}</>;

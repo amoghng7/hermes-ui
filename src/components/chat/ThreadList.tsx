@@ -160,6 +160,7 @@ const SessionItem: React.FC<SessionItemProps> = ({
           type="button"
           aria-label="Session options"
           aria-expanded={menuOpen}
+          tabIndex={menuOpen ? 0 : -1}
           onClick={(e) => {
             e.stopPropagation();
             setMenuOpen((v) => !v);
@@ -233,6 +234,7 @@ export const ThreadList: React.FC = () => {
   const [search, setSearch] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
 
@@ -286,15 +288,23 @@ export const ThreadList: React.FC = () => {
   const handleRenameStart = useCallback((session: Session) => {
     setRenamingId(session.id);
     setRenameValue(session.title);
+    setRenameError(null);
   }, []);
 
   const handleRenameSubmit = useCallback(
     async (id: string) => {
       const trimmed = renameValue.trim();
-      if (trimmed) {
-        await renameSession(id, trimmed);
+      if (!trimmed) {
+        setRenamingId(null);
+        return;
       }
-      setRenamingId(null);
+      try {
+        await renameSession(id, trimmed);
+        setRenamingId(null);
+        setRenameError(null);
+      } catch {
+        setRenameError("Rename failed. Press Escape to cancel.");
+      }
     },
     [renameValue, renameSession]
   );
@@ -302,7 +312,10 @@ export const ThreadList: React.FC = () => {
   const handleRenameKeyDown = useCallback(
     (e: React.KeyboardEvent, id: string) => {
       if (e.key === "Enter") void handleRenameSubmit(id);
-      if (e.key === "Escape") setRenamingId(null);
+      if (e.key === "Escape") {
+        setRenamingId(null);
+        setRenameError(null);
+      }
     },
     [handleRenameSubmit]
   );
@@ -427,6 +440,11 @@ export const ThreadList: React.FC = () => {
                       onKeyDown={(e) => handleRenameKeyDown(e, session.id)}
                       className="w-full px-4 py-3 rounded-2xl bg-surface-container-high border border-primary/50 text-[0.9375rem] text-on-surface focus:outline-none focus:ring-2 focus:ring-primary"
                     />
+                    {renameError && (
+                      <p className="text-[0.75rem] text-status-error px-4 pt-1">
+                        {renameError}
+                      </p>
+                    )}
                   </div>
                 ) : (
                   <SessionItem

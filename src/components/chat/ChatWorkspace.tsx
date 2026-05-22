@@ -48,54 +48,63 @@ function makeMessageId(prefix: string): string {
 function findTrailingJsonBlock(
   content: string,
 ): { start: number; end: number; parsed: Record<string, unknown> } | null {
-  const lastClose = content.lastIndexOf("}");
-  if (lastClose === -1) return null;
+  let endSearchPos = content.length - 1;
 
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-  for (let i = lastClose; i >= 0; i--) {
-    const ch = content[i];
+  while (endSearchPos >= 0) {
+    const lastClose = content.lastIndexOf("}", endSearchPos);
+    if (lastClose === -1) return null;
 
-    if (ch === "\\" && !escaped) {
-      escaped = true;
-      continue;
-    }
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
 
-    if (ch === '"' && !escaped) {
-      inString = !inString;
+    for (let i = lastClose; i >= 0; i--) {
+      const ch = content[i];
+
+      if (ch === "\\" && !escaped) {
+        escaped = true;
+        continue;
+      }
+
+      if (ch === '"' && !escaped) {
+        inString = !inString;
+        escaped = false;
+        continue;
+      }
+
       escaped = false;
-      continue;
-    }
 
-    escaped = false;
+      if (inString) continue;
 
-    if (inString) continue;
-
-    if (ch === "}") depth++;
-    else if (ch === "{") {
-      depth--;
-      if (depth === 0) {
-        try {
-          const parsed: unknown = JSON.parse(content.slice(i, lastClose + 1));
-          if (
-            parsed !== null &&
-            typeof parsed === "object" &&
-            !Array.isArray(parsed)
-          ) {
-            return {
-              start: i,
-              end: lastClose,
-              parsed: parsed as Record<string, unknown>,
-            };
+      if (ch === "}") depth++;
+      else if (ch === "{") {
+        depth--;
+        if (depth === 0) {
+          try {
+            const parsed: unknown = JSON.parse(content.slice(i, lastClose + 1));
+            if (
+              parsed !== null &&
+              typeof parsed === "object" &&
+              !Array.isArray(parsed)
+            ) {
+              return {
+                start: i,
+                end: lastClose,
+                parsed: parsed as Record<string, unknown>,
+              };
+            }
+          } catch {
+            // Not valid JSON — try an earlier closing brace
           }
-        } catch {
-          // Not valid JSON — ignore
+          break;
         }
-        return null;
       }
     }
+
+    // Move search window back past the current closing brace and try again
+    endSearchPos = lastClose - 1;
   }
+
   return null;
 }
 
@@ -196,6 +205,7 @@ export function ChatWorkspace() {
   const isStreaming = useIsStreaming(activeSessionId);
   const toolCallsByMessage = useToolCallsByMessage(activeSessionId, messages);
   const appendMessage = useHermesStore((state) => state.appendMessage);
+  const addUserMessage = useHermesStore((state) => state.addUserMessage);
   const finalizeMessage = useHermesStore((state) => state.finalizeMessage);
   const createSession = useHermesStore((state) => state.createSession);
   const setPendingAskUser = useHermesStore((state) => state.setPendingAskUser);
@@ -250,8 +260,8 @@ export function ChatWorkspace() {
       content: text,
       createdAt,
     };
-    appendMessage(sessionId, userMessage);
-    finalizeMessage(sessionId, userMessageId);
+    // Add user message without touching streaming state (streaming is for the assistant).
+    addUserMessage(sessionId, userMessage);
 
     const history = (useHermesStore.getState().messagesBySession[sessionId] ?? []).map(
       (message) => ({ role: message.role, content: message.content })
