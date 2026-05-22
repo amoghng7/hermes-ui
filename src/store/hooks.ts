@@ -10,7 +10,7 @@
 
 import { useMemo } from "react";
 import { useHermesStore } from "@/store/hermesStore";
-import type { Agent, MemoryEntry, Message, Profile, Session, ToolCall } from "@/types/hermes";
+import type { Agent, AskUserRequest, ConfirmationRequest, MemoryEntry, Message, Profile, Session, ToolCall } from "@/types/hermes";
 
 // Stable empty arrays — returned instead of `[]` literals so that
 // components don't re-render on every unrelated store update.
@@ -138,4 +138,24 @@ export function useToolCallsByMessage(
     }
     return result;
   }, [toolCalls, messages]);
+}
+
+// ---------------------------------------------------------------------------
+// AskUser / Confirmation
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the pending ask_user request, or `null` when there is none.
+ * Non-null value means `AskUserDialog` should be shown instead of `ChatInput`.
+ */
+export function usePendingAskUser(): AskUserRequest | null {
+  return useHermesStore((s) => s.pendingAskUser);
+}
+
+/**
+ * Returns the pending confirmation request for a destructive tool call,
+ * or `null` when there is none.
+ */
+export function usePendingConfirmation(): ConfirmationRequest | null {
+  return useHermesStore((s) => s.pendingConfirmation);
 }

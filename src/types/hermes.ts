@@ -163,6 +163,38 @@ export interface MemoryEntry {
 }
 
 // ---------------------------------------------------------------------------
+// AskUser / Confirmation dialogs
+// ---------------------------------------------------------------------------
+
+/**
+ * A pending question that the assistant is asking the user.
+ * Set in the store when an `ask_user` tool call or marker is detected.
+ */
+export interface AskUserRequest {
+  /** The question text to display to the user. */
+  question: string;
+  /** Pre-defined options the user can choose from. */
+  options?: string[];
+  /** When true the user may select multiple options. */
+  multiSelect?: boolean;
+  /** When true a free-text input is shown in addition to options. */
+  allowCustom?: boolean;
+}
+
+/**
+ * A pending confirmation for a potentially destructive tool invocation.
+ * Set in the store when a `confirmation_required` marker is detected.
+ */
+export interface ConfirmationRequest {
+  /** Display name of the tool about to be executed. */
+  toolName: string;
+  /** Arguments / parameters the tool will be called with. */
+  parameters: Record<string, unknown>;
+  /** Optional human-readable warning about the action's consequences. */
+  warningText?: string;
+}
+
+// ---------------------------------------------------------------------------
 // SSE / Streaming
 // ---------------------------------------------------------------------------
 

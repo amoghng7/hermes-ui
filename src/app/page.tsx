@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { ThreadList } from "@/components/chat/ThreadList";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { MessageList } from "@/components/chat/MessageList";
+import { AskUserDialog } from "@/components/chat/AskUserDialog";
+import { ConfirmationDialog } from "@/components/chat/ConfirmationDialog";
 import { streamChat } from "@/lib/hermesClient";
-import { useActiveSession, useIsStreaming, useMessages, useToolCallsByMessage } from "@/store/hooks";
+import { useActiveSession, useIsStreaming, useMessages, usePendingAskUser, usePendingConfirmation, useToolCallsByMessage } from "@/store/hooks";
 import { useHermesStore } from "@/store/hermesStore";
-import type { Message } from "@/types/hermes";
+import type { AskUserRequest, ConfirmationRequest, Message } from "@/types/hermes";
 
 function makeMessageId(prefix: string): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -15,6 +17,113 @@ function makeMessageId(prefix: string): string {
   }
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
+
+// ---------------------------------------------------------------------------
+// Detection helpers — parse ask_user / confirmation_required markers from
+// assistant message content.  The Hermes backend embeds these as JSON blocks.
+// ---------------------------------------------------------------------------
+
+/**
+ * Try to extract a JSON value from a string that may end with a JSON block.
+ * Returns the parsed object when the last `{…}` in `content` is valid JSON,
+ * otherwise returns `null`.
+ */
+function extractTrailingJson(content: string): Record<string, unknown> | null {
+  const start = content.lastIndexOf("{");
+  if (start === -1) return null;
+  try {
+    const parsed: unknown = JSON.parse(content.slice(start));
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // Not valid JSON — ignore
+  }
+  return null;
+}
+
+/**
+ * Detect an `ask_user` request embedded in the assistant message content.
+ * Looks for `{"type":"ask_user", ...}` or `{"ask_user": {...}}` patterns.
+ */
+function detectAskUser(content: string): AskUserRequest | null {
+  const obj = extractTrailingJson(content);
+  if (!obj) return null;
+
+  // Shape A: {"type": "ask_user", "question": "...", ...}
+  if (obj["type"] === "ask_user" && typeof obj["question"] === "string") {
+    return {
+      question: obj["question"],
+      options: Array.isArray(obj["options"]) ? (obj["options"] as string[]) : undefined,
+      multiSelect: Boolean(obj["multiSelect"]),
+      allowCustom: Boolean(obj["allowCustom"]),
+    };
+  }
+
+  // Shape B: {"ask_user": {"question": "...", ...}}
+  const inner = obj["ask_user"];
+  if (inner !== null && typeof inner === "object" && !Array.isArray(inner)) {
+    const req = inner as Record<string, unknown>;
+    if (typeof req["question"] === "string") {
+      return {
+        question: req["question"],
+        options: Array.isArray(req["options"]) ? (req["options"] as string[]) : undefined,
+        multiSelect: Boolean(req["multiSelect"]),
+        allowCustom: Boolean(req["allowCustom"]),
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Detect a `confirmation_required` request embedded in the assistant message
+ * content.  Looks for `{"type":"confirmation_required", ...}` or
+ * `{"confirmation_required": {...}}` patterns.
+ */
+function detectConfirmation(content: string): ConfirmationRequest | null {
+  const obj = extractTrailingJson(content);
+  if (!obj) return null;
+
+  // Shape A: {"type": "confirmation_required", "tool": "rm", "parameters": {...}}
+  if (obj["type"] === "confirmation_required" && typeof obj["tool"] === "string") {
+    return {
+      toolName: obj["tool"],
+      parameters:
+        obj["parameters"] !== null &&
+        typeof obj["parameters"] === "object" &&
+        !Array.isArray(obj["parameters"])
+          ? (obj["parameters"] as Record<string, unknown>)
+          : {},
+      warningText: typeof obj["warning"] === "string" ? obj["warning"] : undefined,
+    };
+  }
+
+  // Shape B: {"confirmation_required": {"tool": "rm", "parameters": {...}}}
+  const inner = obj["confirmation_required"];
+  if (inner !== null && typeof inner === "object" && !Array.isArray(inner)) {
+    const req = inner as Record<string, unknown>;
+    if (typeof req["tool"] === "string") {
+      return {
+        toolName: req["tool"],
+        parameters:
+          req["parameters"] !== null &&
+          typeof req["parameters"] === "object" &&
+          !Array.isArray(req["parameters"])
+            ? (req["parameters"] as Record<string, unknown>)
+            : {},
+        warningText: typeof req["warning"] === "string" ? req["warning"] : undefined,
+      };
+    }
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Page component
+// ---------------------------------------------------------------------------
 
 export default function HomePage() {
   const activeSession = useActiveSession();
@@ -25,6 +134,10 @@ export default function HomePage() {
   const appendMessage = useHermesStore((state) => state.appendMessage);
   const finalizeMessage = useHermesStore((state) => state.finalizeMessage);
   const createSession = useHermesStore((state) => state.createSession);
+  const setPendingAskUser = useHermesStore((state) => state.setPendingAskUser);
+  const setPendingConfirmation = useHermesStore((state) => state.setPendingConfirmation);
+  const pendingAskUser = usePendingAskUser();
+  const pendingConfirmation = usePendingConfirmation();
 
   const [model, setModel] = useState("hermes");
   const [isSending, setIsSending] = useState(false);
@@ -33,7 +146,10 @@ export default function HomePage() {
   const abortRef = useRef<AbortController | null>(null);
   const streamRunIdRef = useRef(0);
 
+  // Clear pending dialogs when the active session changes
   useEffect(() => {
+    setPendingAskUser(null);
+    setPendingConfirmation(null);
     return () => {
       streamRunIdRef.current += 1;
       abortRef.current?.abort();
@@ -41,7 +157,7 @@ export default function HomePage() {
       sendingRef.current = false;
       setIsSending(false);
     };
-  }, [activeSessionId]);
+  }, [activeSessionId, setPendingAskUser, setPendingConfirmation]);
 
   const handleSend = async (text: string): Promise<void> => {
     if (!activeSessionId || sendingRef.current) {
@@ -103,6 +219,17 @@ export default function HomePage() {
           createdAt,
         });
       }
+
+      // After streaming completes, check for embedded ask_user / confirmation markers
+      if (streamRunIdRef.current === runId) {
+        const askUser = detectAskUser(assistantContent);
+        if (askUser) {
+          setPendingAskUser(askUser);
+        } else {
+          const confirmation = detectConfirmation(assistantContent);
+          if (confirmation) setPendingConfirmation(confirmation);
+        }
+      }
     } catch (error) {
       if (!abortController.signal.aborted) {
         const errorText =
@@ -125,6 +252,31 @@ export default function HomePage() {
         }
       }
     }
+  };
+
+  /** Called when the user answers the AskUser dialog. */
+  const handleAskUserAnswer = (answer: string | string[]) => {
+    const text = Array.isArray(answer) ? answer.join(", ") : answer;
+    setPendingAskUser(null);
+    void handleSend(text);
+  };
+
+  /** Called when the user dismisses the AskUser dialog (Escape / ✕). */
+  const handleAskUserDismiss = () => {
+    setPendingAskUser(null);
+    void handleSend("(dismissed)");
+  };
+
+  /** Called when the user approves a dangerous tool call. */
+  const handleConfirmApprove = () => {
+    setPendingConfirmation(null);
+    void handleSend("approved");
+  };
+
+  /** Called when the user denies a dangerous tool call. */
+  const handleConfirmDeny = () => {
+    setPendingConfirmation(null);
+    void handleSend("denied");
   };
 
   const handleCreateSession = async () => {
@@ -183,12 +335,32 @@ export default function HomePage() {
           </div>
         )}
 
-        <ChatInput
-          onSend={handleSend}
-          disabled={!activeSessionId || isStreaming || isSending}
-          model={model}
-          onModelChange={setModel}
-        />
+        {/* Bottom input area — only one of the three panels renders at a time */}
+        {pendingAskUser ? (
+          <AskUserDialog
+            question={pendingAskUser.question}
+            options={pendingAskUser.options}
+            multiSelect={pendingAskUser.multiSelect}
+            allowCustom={pendingAskUser.allowCustom}
+            onAnswer={handleAskUserAnswer}
+            onDismiss={handleAskUserDismiss}
+          />
+        ) : pendingConfirmation ? (
+          <ConfirmationDialog
+            toolName={pendingConfirmation.toolName}
+            parameters={pendingConfirmation.parameters}
+            warningText={pendingConfirmation.warningText}
+            onApprove={handleConfirmApprove}
+            onDeny={handleConfirmDeny}
+          />
+        ) : (
+          <ChatInput
+            onSend={handleSend}
+            disabled={!activeSessionId || isStreaming || isSending}
+            model={model}
+            onModelChange={setModel}
+          />
+        )}
       </section>
 
       <aside
