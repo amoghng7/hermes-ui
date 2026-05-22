@@ -29,10 +29,15 @@ export function ConfirmationDialog({
 }: ConfirmationDialogProps) {
   const [visible, setVisible] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const denyButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Trigger slide-up animation on mount
+  // Trigger slide-up animation on mount and focus the Deny button so keyboard
+  // users have a clear, safe default focus target when the dialog opens.
   useEffect(() => {
-    const id = requestAnimationFrame(() => setVisible(true));
+    const id = requestAnimationFrame(() => {
+      setVisible(true);
+      denyButtonRef.current?.focus();
+    });
     return () => cancelAnimationFrame(id);
   }, []);
 
@@ -77,6 +82,7 @@ export function ConfirmationDialog({
         role="dialog"
         aria-modal="true"
         aria-label="Confirm dangerous action"
+        tabIndex={-1}
         className={[
           "bg-surface-container rounded-[24px] border border-status-error/40 px-6 py-5 flex flex-col gap-4",
           "transition-all duration-300 ease-out",
@@ -124,6 +130,7 @@ export function ConfirmationDialog({
         {/* Action buttons */}
         <div className="flex justify-end gap-3">
           <button
+            ref={denyButtonRef}
             type="button"
             onClick={handleDeny}
             className={[

@@ -24,22 +24,54 @@ function makeMessageId(prefix: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Try to extract a JSON value from a string that may end with a JSON block.
- * Returns the parsed object when the last `{…}` in `content` is valid JSON,
- * otherwise returns `null`.
+ * Scan backwards from the final "}" in `content` using a brace-depth counter
+ * to locate the outermost balanced "{…}" block.  Returns `{ start, parsed }`
+ * where `start` is the index of the opening "{" and `parsed` is the decoded
+ * JSON object, or `null` if no valid JSON object is found.
+ *
+ * Unlike `lastIndexOf("{")`, this correctly handles nested objects such as
+ * `{"type":"confirmation_required","parameters":{"path":"/tmp"}}`.
  */
-function extractTrailingJson(content: string): Record<string, unknown> | null {
-  const start = content.lastIndexOf("{");
-  if (start === -1) return null;
-  try {
-    const parsed: unknown = JSON.parse(content.slice(start));
-    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>;
+function findTrailingJsonBlock(
+  content: string
+): { start: number; parsed: Record<string, unknown> } | null {
+  const lastClose = content.lastIndexOf("}");
+  if (lastClose === -1) return null;
+
+  let depth = 0;
+  for (let i = lastClose; i >= 0; i--) {
+    const ch = content[i];
+    if (ch === "}") depth++;
+    else if (ch === "{") {
+      depth--;
+      if (depth === 0) {
+        try {
+          const parsed: unknown = JSON.parse(content.slice(i, lastClose + 1));
+          if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+            return { start: i, parsed: parsed as Record<string, unknown> };
+          }
+        } catch {
+          // Not valid JSON — ignore
+        }
+        return null;
+      }
     }
-  } catch {
-    // Not valid JSON — ignore
   }
   return null;
+}
+
+function extractTrailingJson(content: string): Record<string, unknown> | null {
+  return findTrailingJsonBlock(content)?.parsed ?? null;
+}
+
+/**
+ * Remove the trailing JSON marker block from `content` so protocol internals
+ * are not visible in the chat transcript.  Returns the trimmed prefix.
+ */
+function stripTrailingJson(content: string): string {
+  const result = findTrailingJsonBlock(content);
+  if (!result) return content;
+  return content.slice(0, result.start).trimEnd();
 }
 
 /**
@@ -54,7 +86,9 @@ function detectAskUser(content: string): AskUserRequest | null {
   if (obj["type"] === "ask_user" && typeof obj["question"] === "string") {
     return {
       question: obj["question"],
-      options: Array.isArray(obj["options"]) ? (obj["options"] as string[]) : undefined,
+      options: Array.isArray(obj["options"])
+        ? (obj["options"] as unknown[]).filter((o): o is string => typeof o === "string")
+        : undefined,
       multiSelect: Boolean(obj["multiSelect"]),
       allowCustom: Boolean(obj["allowCustom"]),
     };
@@ -67,7 +101,9 @@ function detectAskUser(content: string): AskUserRequest | null {
     if (typeof req["question"] === "string") {
       return {
         question: req["question"],
-        options: Array.isArray(req["options"]) ? (req["options"] as string[]) : undefined,
+        options: Array.isArray(req["options"])
+          ? (req["options"] as unknown[]).filter((o): o is string => typeof o === "string")
+          : undefined,
         multiSelect: Boolean(req["multiSelect"]),
         allowCustom: Boolean(req["allowCustom"]),
       };
@@ -220,14 +256,34 @@ export default function HomePage() {
         });
       }
 
-      // After streaming completes, check for embedded ask_user / confirmation markers
+      // After streaming completes, check for embedded ask_user / confirmation markers.
+      // When found, strip the raw JSON block from the stored message content so
+      // protocol internals are not visible in the chat transcript.
       if (streamRunIdRef.current === runId) {
         const askUser = detectAskUser(assistantContent);
         if (askUser) {
+          assistantContent = stripTrailingJson(assistantContent);
+          appendMessage(sessionId, {
+            id: assistantMessageId,
+            sessionId,
+            role: "assistant",
+            content: assistantContent,
+            createdAt,
+          });
           setPendingAskUser(askUser);
         } else {
           const confirmation = detectConfirmation(assistantContent);
-          if (confirmation) setPendingConfirmation(confirmation);
+          if (confirmation) {
+            assistantContent = stripTrailingJson(assistantContent);
+            appendMessage(sessionId, {
+              id: assistantMessageId,
+              sessionId,
+              role: "assistant",
+              content: assistantContent,
+              createdAt,
+            });
+            setPendingConfirmation(confirmation);
+          }
         }
       }
     } catch (error) {

@@ -37,11 +37,19 @@ export function AskUserDialog({
   const customInputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Trigger slide-up animation on mount
+  // Trigger slide-up animation on mount and move keyboard focus into the dialog
+  // so users don't lose their focus target when ChatInput is removed from the DOM.
   useEffect(() => {
-    const id = requestAnimationFrame(() => setVisible(true));
+    const id = requestAnimationFrame(() => {
+      setVisible(true);
+      if (allowCustom) {
+        customInputRef.current?.focus();
+      } else {
+        containerRef.current?.focus();
+      }
+    });
     return () => cancelAnimationFrame(id);
-  }, []);
+  }, [allowCustom]);
 
   const animateOut = (callback: () => void) => {
     setVisible(false);
@@ -122,6 +130,7 @@ export function AskUserDialog({
         role="dialog"
         aria-modal="true"
         aria-label="Assistant question"
+        tabIndex={-1}
         className={[
           "bg-surface-container rounded-[24px] border border-primary/30 px-6 py-5 flex flex-col gap-4",
           "transition-all duration-300 ease-out",
