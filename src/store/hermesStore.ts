@@ -9,7 +9,7 @@
  */
 
 import { create } from "zustand";
-import type { Agent, MemoryEntry, McpServer, Message, Profile, Session, Skill, ToolCall } from "@/types/hermes";
+import type { Agent, AskUserRequest, ConfirmationRequest, MemoryEntry, McpServer, Message, Profile, Session, Skill, ToolCall } from "@/types/hermes";
 import {
   listProfiles,
   listSessions,
@@ -37,6 +37,10 @@ export interface HermesState {
   agents: Record<string, Agent[]>;
   /** Tool calls keyed by sessionId. */
   toolCallsBySession: Record<string, ToolCall[]>;
+  /** Pending ask_user request (replaces ChatInput while set). */
+  pendingAskUser: AskUserRequest | null;
+  /** Pending confirmation request for a destructive tool call. */
+  pendingConfirmation: ConfirmationRequest | null;
   skills: Skill[];
   mcpServers: McpServer[];
   memory: MemoryEntry[];
@@ -87,6 +91,18 @@ export interface HermesActions {
    */
   setToolCalls(sessionId: string, calls: ToolCall[]): void;
 
+  /**
+   * Set or clear the pending ask_user dialog.
+   * Pass `null` to dismiss the dialog.
+   */
+  setPendingAskUser(request: AskUserRequest | null): void;
+
+  /**
+   * Set or clear the pending confirmation dialog.
+   * Pass `null` to dismiss the dialog.
+   */
+  setPendingConfirmation(request: ConfirmationRequest | null): void;
+
   // Internal helpers exposed for testing / direct use
   _setSessions(sessions: Session[]): void;
   _setMemory(memory: MemoryEntry[]): void;
@@ -108,6 +124,8 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
   streamingMessageId: null,
   agents: {},
   toolCallsBySession: {},
+  pendingAskUser: null,
+  pendingConfirmation: null,
   skills: [],
   mcpServers: [],
   memory: [],
@@ -216,6 +234,14 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
     set((state) => ({
       toolCallsBySession: { ...state.toolCallsBySession, [sessionId]: calls },
     }));
+  },
+
+  setPendingAskUser(request: AskUserRequest | null) {
+    set({ pendingAskUser: request });
+  },
+
+  setPendingConfirmation(request: ConfirmationRequest | null) {
+    set({ pendingConfirmation: request });
   },
 }));
 

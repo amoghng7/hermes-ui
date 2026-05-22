@@ -4,10 +4,12 @@ import { useEffect, useRef, useState } from "react";
 import { ThreadList } from "@/components/chat/ThreadList";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { MessageList } from "@/components/chat/MessageList";
+import { AskUserDialog } from "@/components/chat/AskUserDialog";
+import { ConfirmationDialog } from "@/components/chat/ConfirmationDialog";
 import { streamChat } from "@/lib/hermesClient";
-import { useActiveSession, useIsStreaming, useMessages, useToolCallsByMessage } from "@/store/hooks";
+import { useActiveSession, useIsStreaming, useMessages, usePendingAskUser, usePendingConfirmation, useToolCallsByMessage } from "@/store/hooks";
 import { useHermesStore } from "@/store/hermesStore";
-import type { Message } from "@/types/hermes";
+import type { AskUserRequest, ConfirmationRequest, Message } from "@/types/hermes";
 
 function makeMessageId(prefix: string): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -15,6 +17,195 @@ function makeMessageId(prefix: string): string {
   }
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
+
+// ---------------------------------------------------------------------------
+// Detection helpers — parse ask_user / confirmation_required markers from
+// assistant message content.  The Hermes backend embeds these as JSON blocks.
+// ---------------------------------------------------------------------------
+
+/**
+ * Scan backwards from the final "}" in `content` using a brace-depth counter
+ * that ignores braces inside JSON string values.  Returns `{ start, parsed }`
+ * where `start` is the index of the opening "{" and `parsed` is the decoded
+ * JSON object, or `null` if no valid JSON object is found.
+ *
+ * String-aware: tracks escape sequences and quoted-string state so that
+ * braces inside values like `"Should I use {placeholder}?"` don't confuse
+ * the depth counter.
+ *
+ * Unlike `lastIndexOf("{")`, this correctly handles nested objects such as
+ * `{"type":"confirmation_required","parameters":{"path":"/tmp"}}` and
+ * braces inside string values.
+ */
+function findTrailingJsonBlock(
+  content: string,
+): { start: number; parsed: Record<string, unknown> } | null {
+  const lastClose = content.lastIndexOf("}");
+  if (lastClose === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = lastClose; i >= 0; i--) {
+    const ch = content[i];
+
+    // Track escape sequences: a backslash reverses the escaped flag
+    if (ch === "\\" && !escaped) {
+      escaped = true;
+      continue;
+    }
+
+    // A quote toggles string state — but only when not escaped
+    if (ch === '"' && !escaped) {
+      inString = !inString;
+      escaped = false;
+      continue;
+    }
+
+    escaped = false;
+
+    // Skip braces inside strings
+    if (inString) continue;
+
+    if (ch === "}") depth++;
+    else if (ch === "{") {
+      depth--;
+      if (depth === 0) {
+        try {
+          const parsed: unknown = JSON.parse(content.slice(i, lastClose + 1));
+          if (
+            parsed !== null &&
+            typeof parsed === "object" &&
+            !Array.isArray(parsed)
+          ) {
+            return {
+              start: i,
+              parsed: parsed as Record<string, unknown>,
+            };
+          }
+        } catch {
+          // Not valid JSON — ignore
+        }
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
+function extractTrailingJson(content: string): Record<string, unknown> | null {
+  return findTrailingJsonBlock(content)?.parsed ?? null;
+}
+
+/**
+ * Remove the trailing JSON marker block from `content` so protocol internals
+ * are not visible in the chat transcript.
+ *
+ * Only strips when the JSON block is at the absolute end of the content
+ * (only whitespace is allowed after the closing `}`).  If the marker is
+ * followed by non-whitespace prose, returns the content unchanged so the
+ * user can still see their full message.
+ */
+function stripTrailingJson(content: string): string {
+  const result = findTrailingJsonBlock(content);
+  if (!result) return content;
+
+  // Verify only whitespace follows the closing brace
+  const afterBlock = content.slice(result.start).slice(
+    // length of the JSON block = lastClose - start + 1
+    content.lastIndexOf("}", result.start) - result.start + 1,
+  );
+  if (afterBlock.trim().length > 0) return content;
+
+  return content.slice(0, result.start).trimEnd();
+}
+
+/**
+ * Detect an `ask_user` request embedded in the assistant message content.
+ * Looks for `{"type":"ask_user", ...}` or `{"ask_user": {...}}` patterns.
+ */
+function detectAskUser(content: string): AskUserRequest | null {
+  const obj = extractTrailingJson(content);
+  if (!obj) return null;
+
+  // Shape A: {"type": "ask_user", "question": "...", ...}
+  if (obj["type"] === "ask_user" && typeof obj["question"] === "string") {
+    return {
+      question: obj["question"],
+      options: Array.isArray(obj["options"])
+        ? (obj["options"] as unknown[]).filter((o): o is string => typeof o === "string")
+        : undefined,
+      multiSelect: Boolean(obj["multiSelect"]),
+      allowCustom: Boolean(obj["allowCustom"]),
+    };
+  }
+
+  // Shape B: {"ask_user": {"question": "...", ...}}
+  const inner = obj["ask_user"];
+  if (inner !== null && typeof inner === "object" && !Array.isArray(inner)) {
+    const req = inner as Record<string, unknown>;
+    if (typeof req["question"] === "string") {
+      return {
+        question: req["question"],
+        options: Array.isArray(req["options"])
+          ? (req["options"] as unknown[]).filter((o): o is string => typeof o === "string")
+          : undefined,
+        multiSelect: Boolean(req["multiSelect"]),
+        allowCustom: Boolean(req["allowCustom"]),
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Detect a `confirmation_required` request embedded in the assistant message
+ * content.  Looks for `{"type":"confirmation_required", ...}` or
+ * `{"confirmation_required": {...}}` patterns.
+ */
+function detectConfirmation(content: string): ConfirmationRequest | null {
+  const obj = extractTrailingJson(content);
+  if (!obj) return null;
+
+  // Shape A: {"type": "confirmation_required", "tool": "rm", "parameters": {...}}
+  if (obj["type"] === "confirmation_required" && typeof obj["tool"] === "string") {
+    return {
+      toolName: obj["tool"],
+      parameters:
+        obj["parameters"] !== null &&
+        typeof obj["parameters"] === "object" &&
+        !Array.isArray(obj["parameters"])
+          ? (obj["parameters"] as Record<string, unknown>)
+          : {},
+      warningText: typeof obj["warning"] === "string" ? obj["warning"] : undefined,
+    };
+  }
+
+  // Shape B: {"confirmation_required": {"tool": "rm", "parameters": {...}}}
+  const inner = obj["confirmation_required"];
+  if (inner !== null && typeof inner === "object" && !Array.isArray(inner)) {
+    const req = inner as Record<string, unknown>;
+    if (typeof req["tool"] === "string") {
+      return {
+        toolName: req["tool"],
+        parameters:
+          req["parameters"] !== null &&
+          typeof req["parameters"] === "object" &&
+          !Array.isArray(req["parameters"])
+            ? (req["parameters"] as Record<string, unknown>)
+            : {},
+        warningText: typeof req["warning"] === "string" ? req["warning"] : undefined,
+      };
+    }
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Page component
+// ---------------------------------------------------------------------------
 
 export default function HomePage() {
   const activeSession = useActiveSession();
@@ -25,6 +216,10 @@ export default function HomePage() {
   const appendMessage = useHermesStore((state) => state.appendMessage);
   const finalizeMessage = useHermesStore((state) => state.finalizeMessage);
   const createSession = useHermesStore((state) => state.createSession);
+  const setPendingAskUser = useHermesStore((state) => state.setPendingAskUser);
+  const setPendingConfirmation = useHermesStore((state) => state.setPendingConfirmation);
+  const pendingAskUser = usePendingAskUser();
+  const pendingConfirmation = usePendingConfirmation();
 
   const [model, setModel] = useState("hermes");
   const [isSending, setIsSending] = useState(false);
@@ -33,7 +228,10 @@ export default function HomePage() {
   const abortRef = useRef<AbortController | null>(null);
   const streamRunIdRef = useRef(0);
 
+  // Clear pending dialogs when the active session changes
   useEffect(() => {
+    setPendingAskUser(null);
+    setPendingConfirmation(null);
     return () => {
       streamRunIdRef.current += 1;
       abortRef.current?.abort();
@@ -41,7 +239,7 @@ export default function HomePage() {
       sendingRef.current = false;
       setIsSending(false);
     };
-  }, [activeSessionId]);
+  }, [activeSessionId, setPendingAskUser, setPendingConfirmation]);
 
   const handleSend = async (text: string): Promise<void> => {
     if (!activeSessionId || sendingRef.current) {
@@ -103,6 +301,35 @@ export default function HomePage() {
           createdAt,
         });
       }
+
+      // After streaming completes, check for embedded ask_user / confirmation markers.
+      // When found, strip the raw JSON block from the stored message content so
+      // protocol internals are not visible in the chat transcript.
+      if (streamRunIdRef.current === runId) {
+        // Strip the trailing JSON marker and persist the cleaned content to the store.
+        const applyMarkerStrip = () => {
+          assistantContent = stripTrailingJson(assistantContent);
+          appendMessage(sessionId, {
+            id: assistantMessageId,
+            sessionId,
+            role: "assistant",
+            content: assistantContent,
+            createdAt,
+          });
+        };
+
+        const askUser = detectAskUser(assistantContent);
+        if (askUser) {
+          applyMarkerStrip();
+          setPendingAskUser(askUser);
+        } else {
+          const confirmation = detectConfirmation(assistantContent);
+          if (confirmation) {
+            applyMarkerStrip();
+            setPendingConfirmation(confirmation);
+          }
+        }
+      }
     } catch (error) {
       if (!abortController.signal.aborted) {
         const errorText =
@@ -125,6 +352,31 @@ export default function HomePage() {
         }
       }
     }
+  };
+
+  /** Called when the user answers the AskUser dialog. */
+  const handleAskUserAnswer = (answer: string | string[]) => {
+    const text = Array.isArray(answer) ? answer.join(", ") : answer;
+    setPendingAskUser(null);
+    void handleSend(text);
+  };
+
+  /** Called when the user dismisses the AskUser dialog (Escape / ✕). */
+  const handleAskUserDismiss = () => {
+    setPendingAskUser(null);
+    void handleSend("(dismissed)");
+  };
+
+  /** Called when the user approves a dangerous tool call. */
+  const handleConfirmApprove = () => {
+    setPendingConfirmation(null);
+    void handleSend("approved");
+  };
+
+  /** Called when the user denies a dangerous tool call. */
+  const handleConfirmDeny = () => {
+    setPendingConfirmation(null);
+    void handleSend("denied");
   };
 
   const handleCreateSession = async () => {
@@ -183,12 +435,32 @@ export default function HomePage() {
           </div>
         )}
 
-        <ChatInput
-          onSend={handleSend}
-          disabled={!activeSessionId || isStreaming || isSending}
-          model={model}
-          onModelChange={setModel}
-        />
+        {/* Bottom input area — only one of the three panels renders at a time */}
+        {pendingAskUser ? (
+          <AskUserDialog
+            question={pendingAskUser.question}
+            options={pendingAskUser.options}
+            multiSelect={pendingAskUser.multiSelect}
+            allowCustom={pendingAskUser.allowCustom}
+            onAnswer={handleAskUserAnswer}
+            onDismiss={handleAskUserDismiss}
+          />
+        ) : pendingConfirmation ? (
+          <ConfirmationDialog
+            toolName={pendingConfirmation.toolName}
+            parameters={pendingConfirmation.parameters}
+            warningText={pendingConfirmation.warningText}
+            onApprove={handleConfirmApprove}
+            onDeny={handleConfirmDeny}
+          />
+        ) : (
+          <ChatInput
+            onSend={handleSend}
+            disabled={!activeSessionId || isStreaming || isSending}
+            model={model}
+            onModelChange={setModel}
+          />
+        )}
       </section>
 
       <aside
