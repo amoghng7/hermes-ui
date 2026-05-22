@@ -160,14 +160,13 @@ const SessionItem: React.FC<SessionItemProps> = ({
           type="button"
           aria-label="Session options"
           aria-expanded={menuOpen}
-          tabIndex={menuOpen ? 0 : -1}
           onClick={(e) => {
             e.stopPropagation();
             setMenuOpen((v) => !v);
           }}
           className={[
             "p-1 rounded-lg text-text-muted hover:bg-surface-container hover:text-on-surface transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-            menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+            menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
           ].join(" ")}
         >
           <span className="material-symbols-outlined text-[1.125rem]" aria-hidden="true">

@@ -48,12 +48,15 @@ function makeMessageId(prefix: string): string {
 function findTrailingJsonBlock(
   content: string,
 ): { start: number; end: number; parsed: Record<string, unknown> } | null {
-  let endSearchPos = content.length - 1;
+  // Collect all closing-brace positions in one forward pass so we can iterate
+  // backwards without repeated lastIndexOf calls — avoids O(n²) in the worst case.
+  const closingBraces: number[] = [];
+  for (let i = 0; i < content.length; i++) {
+    if (content[i] === "}") closingBraces.push(i);
+  }
 
-  while (endSearchPos >= 0) {
-    const lastClose = content.lastIndexOf("}", endSearchPos);
-    if (lastClose === -1) return null;
-
+  for (let bi = closingBraces.length - 1; bi >= 0; bi--) {
+    const lastClose = closingBraces[bi];
     let depth = 0;
     let inString = false;
     let escaped = false;
@@ -94,15 +97,12 @@ function findTrailingJsonBlock(
               };
             }
           } catch {
-            // Not valid JSON — try an earlier closing brace
+            // Not valid JSON — try an earlier closing brace.
           }
           break;
         }
       }
     }
-
-    // Move search window back past the current closing brace and try again
-    endSearchPos = lastClose - 1;
   }
 
   return null;
