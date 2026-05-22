@@ -15,6 +15,7 @@ import {
   listSessions,
   createSession as apiCreateSession,
   deleteSession as apiDeleteSession,
+  renameSession as apiRenameSession,
   getMemory,
 } from "@/lib/hermesClient";
 
@@ -61,6 +62,11 @@ export interface HermesActions {
    * and make it the active session.
    */
   createSession(title?: string): Promise<Session>;
+
+  /**
+   * Rename an existing session.
+   */
+  renameSession(id: string, title: string): Promise<void>;
 
   /**
    * Remove a session from state and the gateway.
@@ -134,17 +140,16 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
 
   async setActiveProfile(id: string) {
     set({ activeProfileId: id, sessions: [], activeSessionId: null, memory: [], streamingSessionId: null, streamingMessageId: null });
-    try {
-      const [sessions, memory] = await Promise.all([
-        listSessions(id),
-        getMemory(id),
-      ]);
-      // Discard stale response if profile switched again while awaiting.
-      if (get().activeProfileId !== id) return;
-      set({ sessions, memory });
-    } catch {
-      // Silently tolerate gateway errors — gateway may not be running.
-    }
+    const [sessionsResult, memoryResult] = await Promise.allSettled([
+      listSessions(id),
+      getMemory(id),
+    ]);
+    // Discard stale response if profile switched again while awaiting.
+    if (get().activeProfileId !== id) return;
+    const update: Partial<HermesState> = {};
+    if (sessionsResult.status === "fulfilled") update.sessions = sessionsResult.value;
+    if (memoryResult.status === "fulfilled") update.memory = memoryResult.value;
+    if (Object.keys(update).length > 0) set(update);
   },
 
   async createSession(title?: string) {
@@ -157,15 +162,38 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
     return session;
   },
 
+  async renameSession(id: string, title: string) {
+    const updated = await apiRenameSession(id, title);
+    set((state) => ({
+      sessions: state.sessions.map((s) => (s.id === id ? updated : s)),
+    }));
+  },
+
   async deleteSession(id: string) {
     await apiDeleteSession(id);
     set((state) => {
-      const { [id]: _toolCalls, ...remainingToolCalls } = state.toolCallsBySession;
+      const remaining = state.sessions.filter((s) => s.id !== id);
+
+      // Build remaining records without spread-destructuring (avoids unused-var lint warnings).
+      const remainingToolCalls = { ...state.toolCallsBySession };
+      delete remainingToolCalls[id];
+      const remainingMessages = { ...state.messagesBySession };
+      delete remainingMessages[id];
+
+      let newActiveId = state.activeSessionId;
+      if (state.activeSessionId === id) {
+        // Pick the most recently updated remaining session, or null if none left.
+        const sorted = [...remaining].sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
+        newActiveId = sorted[0]?.id ?? null;
+      }
+
       return {
-        sessions: state.sessions.filter((s) => s.id !== id),
-        activeSessionId:
-          state.activeSessionId === id ? null : state.activeSessionId,
+        sessions: remaining,
+        activeSessionId: newActiveId,
         toolCallsBySession: remainingToolCalls,
+        messagesBySession: remainingMessages,
       };
     });
   },

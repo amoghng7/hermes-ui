@@ -403,6 +403,35 @@ export async function getSession(
 }
 
 /**
+ * Rename (update the title of) an existing session.
+ *
+ * @param sessionId - The ID of the session to rename.
+ * @param title - The new title for the session.
+ * @param opts - {@link ClientOptions}
+ * @returns The updated {@link Session}.
+ * @throws {HermesApiError} On non-2xx responses.
+ */
+export async function renameSession(
+  sessionId: string,
+  title: string,
+  opts: ClientOptions = {}
+): Promise<Session> {
+  const baseUrl = opts.baseUrl ?? resolveBaseUrl();
+  const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
+
+  const response = await fetchImpl(`${baseUrl}/v1/sessions/${sessionId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      ...resolveAuthHeader(),
+    },
+    body: JSON.stringify({ title }),
+  });
+  await assertOk(response);
+  return response.json() as Promise<Session>;
+}
+
+/**
  * Delete a session by its ID.
  *
  * @param sessionId - The ID of the session to delete.
