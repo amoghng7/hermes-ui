@@ -75,10 +75,12 @@ function AgentCard({ agent, onClick }: AgentCardProps) {
   const accentColor = `hsl(${hue} 50% 65%)`;
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       className="agent-card rounded-2xl overflow-hidden cursor-pointer hover:border-primary/30 transition-colors group w-full text-left"
       onClick={onClick}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
       aria-label={`Agent: ${agent.name}, status: ${statusLabel(agent.status)}`}
     >
       {/* Card header */}
@@ -185,7 +187,7 @@ function AgentCard({ agent, onClick }: AgentCardProps) {
           ))}
         </div>
       )}
-    </button>
+    </div>
   );
 }
 
@@ -233,7 +235,8 @@ export interface SessionAgentsPanelProps {
 
 export function SessionAgentsPanel({ sessionId }: SessionAgentsPanelProps) {
   const agents = useAgents(sessionId);
-  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const selectedAgent = agents.find((a) => a.id === selectedAgentId) ?? null;
 
   const activeCount = agents.filter(
     (a) => a.status === "active" || a.status === "waiting"
@@ -274,7 +277,7 @@ export function SessionAgentsPanel({ sessionId }: SessionAgentsPanelProps) {
             <AgentCard
               key={agent.id}
               agent={agent}
-              onClick={() => setSelectedAgent(agent)}
+              onClick={() => setSelectedAgentId(agent.id)}
             />
           ))}
         </div>
@@ -286,7 +289,7 @@ export function SessionAgentsPanel({ sessionId }: SessionAgentsPanelProps) {
       {selectedAgent !== null && (
         <AgentDetailDrawer
           agent={selectedAgent}
-          onClose={() => setSelectedAgent(null)}
+          onClose={() => setSelectedAgentId(null)}
         />
       )}
     </aside>

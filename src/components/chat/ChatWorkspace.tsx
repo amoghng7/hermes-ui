@@ -380,16 +380,18 @@ export function ChatWorkspace() {
         if (delta.toolCallsDelta) {
           for (const tc of delta.toolCallsDelta) {
             const acc = toolCallAccumRef.current.get(tc.index) ?? { id: "", name: "", args: "", done: false };
-            if (tc.id) acc.id = tc.id;
-            if (tc.name) acc.name = tc.name;
+            if (tc.id && !acc.id) acc.id = tc.id;
+            if (tc.name && !acc.name) acc.name = tc.name;
             if (tc.argumentsDelta) acc.args += tc.argumentsDelta;
             toolCallAccumRef.current.set(tc.index, acc);
 
             if (!acc.done && acc.name === "delegate_task" && acc.args) {
               try {
-                const parsedArgs = JSON.parse(acc.args) as Record<string, unknown>;
-                upsertAgent(sessionId, agentFromDelegateTaskArgs(acc.id, parsedArgs));
-                acc.done = true;
+                const parsedArgs = JSON.parse(acc.args);
+                if (parsedArgs !== null && typeof parsedArgs === "object" && !Array.isArray(parsedArgs)) {
+                  upsertAgent(sessionId, agentFromDelegateTaskArgs(acc.id, parsedArgs as Record<string, unknown>));
+                  acc.done = true;
+                }
               } catch {
                 // Arguments not yet complete JSON — wait for more chunks.
                 // In development, log malformed args after a reasonable length.

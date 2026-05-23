@@ -73,7 +73,6 @@ export function AgentDetailDrawer({ agent, onClose }: AgentDetailDrawerProps) {
       className="absolute inset-0 z-30 flex flex-col bg-surface-glass-heavy backdrop-blur-sm"
       role="dialog"
       aria-label={`Agent details: ${agent.name}`}
-      aria-modal="true"
     >
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-border-subtle">
