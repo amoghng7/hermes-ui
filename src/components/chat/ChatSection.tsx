@@ -1,11 +1,14 @@
 "use client";
 
 /**
- * ChatWorkspace — the center chat panel and right swarm-topology panel.
+ * ChatSection — center chat panel for a given session.
  *
- * Reads the active session from the Zustand store and handles all streaming
- * / message logic.  Extracted from the home page so it can be reused by
- * dynamic session routes (`/s/[sessionId]`).
+ * Encapsulates the session header (title, share button), MessageList,
+ * and ChatInput / AskUserDialog / ConfirmationDialog.  Handles the full
+ * streaming lifecycle: mount → fetch history (via store) → stream responses.
+ *
+ * Designed to be composed inside `ChatWorkspace` (layout) but can be
+ * embedded anywhere a `sessionId` is available.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -14,10 +17,9 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { MessageList } from "@/components/chat/MessageList";
 import { AskUserDialog } from "@/components/chat/AskUserDialog";
 import { ConfirmationDialog } from "@/components/chat/ConfirmationDialog";
-import { SessionAgentsPanel } from "@/components/agents/SessionAgentsPanel";
 import { streamChat } from "@/lib/hermesClient";
 import {
-  useActiveSession,
+  useSession,
   useIsStreaming,
   useMessages,
   usePendingAskUser,
@@ -26,6 +28,10 @@ import {
 } from "@/store/hooks";
 import { useHermesStore } from "@/store/hermesStore";
 import type { Agent, AskUserRequest, ConfirmationRequest, Message } from "@/types/hermes";
+
+// ---------------------------------------------------------------------------
+// ID helpers
+// ---------------------------------------------------------------------------
 
 function makeMessageId(prefix: string): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -64,10 +70,6 @@ const MAX_DELEGATE_TASK_ARG_LENGTH = 2000;
 function findTrailingJsonBlock(
   content: string,
 ): { start: number; end: number; parsed: Record<string, unknown> } | null {
-  // Collect all closing-brace positions in one forward pass so we can iterate
-  // backwards without repeated string scans when multiple closing braces are tried.
-  // Braces that fall inside string literals are included but are safely ignored by
-  // the inString tracking in the inner backward scan below.
   const closingBraces: number[] = [];
   for (let i = 0; i < content.length; i++) {
     if (content[i] === "}") closingBraces.push(i);
@@ -134,7 +136,6 @@ function stripTrailingJson(content: string): string {
   const result = findTrailingJsonBlock(content);
   if (!result) return content;
 
-  // Use result.end (the closing "}" index) already computed by findTrailingJsonBlock.
   const afterBlock = content.slice(result.end + 1);
   if (afterBlock.trim().length > 0) return content;
 
@@ -271,13 +272,17 @@ function agentFromDelegateTaskArgs(
 // Component
 // ---------------------------------------------------------------------------
 
-export function ChatWorkspace() {
+export interface ChatSectionProps {
+  sessionId: string;
+}
+
+export function ChatSection({ sessionId }: ChatSectionProps) {
   const router = useRouter();
-  const activeSession = useActiveSession();
-  const activeSessionId = activeSession?.id ?? null;
-  const messages = useMessages(activeSessionId);
-  const isStreaming = useIsStreaming(activeSessionId);
-  const toolCallsByMessage = useToolCallsByMessage(activeSessionId, messages);
+  const isNew = sessionId === "new";
+  const session = useSession(sessionId);
+  const messages = useMessages(isNew ? null : sessionId);
+  const isStreaming = useIsStreaming(isNew ? null : sessionId);
+  const toolCallsByMessage = useToolCallsByMessage(isNew ? null : sessionId, messages);
   const appendMessage = useHermesStore((state) => state.appendMessage);
   const addUserMessage = useHermesStore((state) => state.addUserMessage);
   const finalizeMessage = useHermesStore((state) => state.finalizeMessage);
@@ -294,12 +299,9 @@ export function ChatWorkspace() {
   const sendingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const streamRunIdRef = useRef(0);
-  // Accumulates streaming tool call argument chunks keyed by call index.
-  // `done` is set to true once arguments have been fully parsed to avoid
-  // re-parsing every subsequent chunk for the same call.
   const toolCallAccumRef = useRef<Map<number, ToolCallAccumulator>>(new Map());
 
-  // Clear pending dialogs when the active session changes
+  // Clear pending dialogs when the session changes
   useEffect(() => {
     setPendingAskUser(null);
     setPendingConfirmation(null);
@@ -310,10 +312,10 @@ export function ChatWorkspace() {
       sendingRef.current = false;
       setIsSending(false);
     };
-  }, [activeSessionId, setPendingAskUser, setPendingConfirmation]);
+  }, [sessionId, setPendingAskUser, setPendingConfirmation]);
 
   const handleSend = async (text: string): Promise<void> => {
-    if (!activeSessionId) {
+    if (isNew) {
       throw new Error("No active session. Please select or create a conversation first.");
     }
     if (sendingRef.current) {
@@ -327,12 +329,10 @@ export function ChatWorkspace() {
     abortRef.current = abortController;
     sendingRef.current = true;
     setIsSending(true);
-    // Reset accumulated tool-call state for this new request.
     toolCallAccumRef.current = new Map();
     const createdAt = new Date().toISOString();
     const userMessageId = makeMessageId("user");
     const assistantMessageId = makeMessageId("assistant");
-    const sessionId = activeSessionId;
 
     const userMessage: Message = {
       id: userMessageId,
@@ -341,7 +341,6 @@ export function ChatWorkspace() {
       content: text,
       createdAt,
     };
-    // Add user message without touching streaming state (streaming is for the assistant).
     addUserMessage(sessionId, userMessage);
 
     const history = (useHermesStore.getState().messagesBySession[sessionId] ?? []).map(
@@ -394,7 +393,6 @@ export function ChatWorkspace() {
                 }
               } catch {
                 // Arguments not yet complete JSON — wait for more chunks.
-                // In development, log malformed args after a reasonable length.
                 if (process.env.NODE_ENV === "development" && acc.args.length > MAX_DELEGATE_TASK_ARG_LENGTH) {
                   console.warn("[delegate_task] unusually large unparseable args:", acc.args.slice(0, 200));
                 }
@@ -485,88 +483,82 @@ export function ChatWorkspace() {
     if (isCreatingSession) return;
     setIsCreatingSession(true);
     try {
-      const session = await createSession("New Hermes chat");
-      router.push(`/s/${session.id}`);
+      const newSession = await createSession("New Hermes chat");
+      router.push(`/s/${newSession.id}`);
     } finally {
       setIsCreatingSession(false);
     }
   };
 
   return (
-    <>
-      {/* Center chat panel */}
-      <section aria-label="Chat" className="flex-1 flex flex-col glass-panel rounded-3xl overflow-hidden relative responsive-panel">
-        <div className="p-8 border-b border-border-subtle flex justify-between items-center bg-surface-container/20">
-          <div>
-            <h2 className="font-h1 text-2xl font-semibold text-on-surface">
-              {activeSession?.title ?? "Hermes Chat"}
-            </h2>
-            <p className="text-[0.8125rem] text-text-muted mt-1">
-              {activeSessionId
-                ? "Live streaming enabled"
-                : "Create or select a session to start chatting"}
-            </p>
-          </div>
-          <button
-            type="button"
-            aria-label="Share thread"
-            className="bg-surface-container p-3 rounded-xl hover:bg-primary/10 border border-border-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          >
-            <span className="material-symbols-outlined text-primary" aria-hidden="true">share</span>
-          </button>
+    <section aria-label="Chat" className="flex-1 flex flex-col glass-panel rounded-3xl overflow-hidden relative responsive-panel">
+      <div className="p-8 border-b border-border-subtle flex justify-between items-center bg-surface-container/20">
+        <div>
+          <h2 className="font-h1 text-2xl font-semibold text-on-surface">
+            {session?.title ?? "Hermes Chat"}
+          </h2>
+          <p className="text-[0.8125rem] text-text-muted mt-1">
+            {!isNew
+              ? "Live streaming enabled"
+              : "Create or select a session to start chatting"}
+          </p>
         </div>
+        <button
+          type="button"
+          aria-label="Share thread"
+          className="bg-surface-container p-3 rounded-xl hover:bg-primary/10 border border-border-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+        >
+          <span className="material-symbols-outlined text-primary" aria-hidden="true">share</span>
+        </button>
+      </div>
 
-        {activeSessionId ? (
-          <MessageList messages={messages} isStreaming={isStreaming || isSending} toolCallsByMessage={toolCallsByMessage} />
-        ) : (
-          <div className="flex-1 p-8 flex items-center justify-center">
-            <div className="max-w-lg text-center">
-              <h3 className="text-xl font-semibold text-on-surface">No active session</h3>
-              <p className="text-sm text-text-muted mt-2">
-                Start a fresh conversation to begin streaming responses from Hermes.
-              </p>
-              <button
-                type="button"
-                onClick={() => void handleCreateSession()}
-                disabled={isCreatingSession}
-                className="mt-6 px-4 py-2 rounded-xl bg-primary text-white hover:opacity-90 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-              >
-                {isCreatingSession ? "Creating..." : "Start new session"}
-              </button>
-            </div>
+      {!isNew ? (
+        <MessageList messages={messages} isStreaming={isStreaming || isSending} toolCallsByMessage={toolCallsByMessage} />
+      ) : (
+        <div className="flex-1 p-8 flex items-center justify-center">
+          <div className="max-w-lg text-center">
+            <h3 className="text-xl font-semibold text-on-surface">No active session</h3>
+            <p className="text-sm text-text-muted mt-2">
+              Start a fresh conversation to begin streaming responses from Hermes.
+            </p>
+            <button
+              type="button"
+              onClick={() => void handleCreateSession()}
+              disabled={isCreatingSession}
+              className="mt-6 px-4 py-2 rounded-xl bg-primary text-white hover:opacity-90 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              {isCreatingSession ? "Creating..." : "Start new session"}
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Bottom input area — only one of the three panels renders at a time */}
-        {pendingAskUser ? (
-          <AskUserDialog
-            question={pendingAskUser.question}
-            options={pendingAskUser.options}
-            multiSelect={pendingAskUser.multiSelect}
-            allowCustom={pendingAskUser.allowCustom}
-            onAnswer={handleAskUserAnswer}
-            onDismiss={handleAskUserDismiss}
-          />
-        ) : pendingConfirmation ? (
-          <ConfirmationDialog
-            toolName={pendingConfirmation.toolName}
-            parameters={pendingConfirmation.parameters}
-            warningText={pendingConfirmation.warningText}
-            onApprove={handleConfirmApprove}
-            onDeny={handleConfirmDeny}
-          />
-        ) : (
-          <ChatInput
-            onSend={handleSend}
-            disabled={!activeSessionId || isStreaming || isSending}
-            model={model}
-            onModelChange={setModel}
-          />
-        )}
-      </section>
-
-      {/* Right swarm topology panel — live session agents */}
-      <SessionAgentsPanel sessionId={activeSessionId} />
-    </>
+      {/* Bottom input area — only one of the three panels renders at a time */}
+      {pendingAskUser ? (
+        <AskUserDialog
+          question={pendingAskUser.question}
+          options={pendingAskUser.options}
+          multiSelect={pendingAskUser.multiSelect}
+          allowCustom={pendingAskUser.allowCustom}
+          onAnswer={handleAskUserAnswer}
+          onDismiss={handleAskUserDismiss}
+        />
+      ) : pendingConfirmation ? (
+        <ConfirmationDialog
+          toolName={pendingConfirmation.toolName}
+          parameters={pendingConfirmation.parameters}
+          warningText={pendingConfirmation.warningText}
+          onApprove={handleConfirmApprove}
+          onDeny={handleConfirmDeny}
+        />
+      ) : (
+        <ChatInput
+          onSend={handleSend}
+          disabled={isNew || isStreaming || isSending}
+          model={model}
+          onModelChange={setModel}
+        />
+      )}
+    </section>
   );
 }
