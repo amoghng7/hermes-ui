@@ -15,6 +15,7 @@ import {
   listSessions,
   createSession as apiCreateSession,
   deleteSession as apiDeleteSession,
+  renameSession as apiRenameSession,
   getMemory,
 } from "@/lib/hermesClient";
 
@@ -44,6 +45,9 @@ export interface HermesState {
   skills: Skill[];
   mcpServers: McpServer[];
   memory: MemoryEntry[];
+  /** Monotonically incremented every time the session list is mutated locally.
+   *  Used by the background poll to discard stale results. */
+  sessionMutationVersion: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -63,6 +67,11 @@ export interface HermesActions {
   createSession(title?: string): Promise<Session>;
 
   /**
+   * Rename an existing session.
+   */
+  renameSession(id: string, title: string): Promise<void>;
+
+  /**
    * Remove a session from state and the gateway.
    */
   deleteSession(id: string): Promise<void>;
@@ -72,6 +81,17 @@ export interface HermesActions {
    * messages have not been cached yet.
    */
   setActiveSession(id: string): void;
+
+  /**
+   * Clear the active session (e.g. when navigating to the home route).
+   */
+  clearActiveSession(): void;
+
+  /**
+   * Add a completed user message without touching streaming state.
+   * Use this instead of `appendMessage` for user-authored messages.
+   */
+  addUserMessage(sessionId: string, message: Message): void;
 
   /**
    * Append a partial message token during SSE streaming.
@@ -129,22 +149,24 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
   skills: [],
   mcpServers: [],
   memory: [],
+  sessionMutationVersion: 0,
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
   async setActiveProfile(id: string) {
     set({ activeProfileId: id, sessions: [], activeSessionId: null, memory: [], streamingSessionId: null, streamingMessageId: null });
-    try {
-      const [sessions, memory] = await Promise.all([
-        listSessions(id),
-        getMemory(id),
-      ]);
-      // Discard stale response if profile switched again while awaiting.
-      if (get().activeProfileId !== id) return;
-      set({ sessions, memory });
-    } catch {
-      // Silently tolerate gateway errors — gateway may not be running.
-    }
+    // Promise.allSettled ensures sessions still load even if the memory
+    // endpoint is unavailable (e.g. 404 for a new profile).
+    const [sessionsResult, memoryResult] = await Promise.allSettled([
+      listSessions(id),
+      getMemory(id),
+    ]);
+    // Discard stale response if profile switched again while awaiting.
+    if (get().activeProfileId !== id) return;
+    const update: Partial<HermesState> = {};
+    if (sessionsResult.status === "fulfilled") update.sessions = sessionsResult.value;
+    if (memoryResult.status === "fulfilled") update.memory = memoryResult.value;
+    if (Object.keys(update).length > 0) set(update);
   },
 
   async createSession(title?: string) {
@@ -153,19 +175,45 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
     set((state) => ({
       sessions: [session, ...state.sessions],
       activeSessionId: session.id,
+      sessionMutationVersion: state.sessionMutationVersion + 1,
     }));
     return session;
+  },
+
+  async renameSession(id: string, title: string) {
+    const updated = await apiRenameSession(id, title);
+    set((state) => ({
+      sessions: state.sessions.map((s) => (s.id === id ? updated : s)),
+      sessionMutationVersion: state.sessionMutationVersion + 1,
+    }));
   },
 
   async deleteSession(id: string) {
     await apiDeleteSession(id);
     set((state) => {
-      const { [id]: _toolCalls, ...remainingToolCalls } = state.toolCallsBySession;
+      const remaining = state.sessions.filter((s) => s.id !== id);
+
+      // Build remaining records by spreading and deleting the target key.
+      const remainingToolCalls = { ...state.toolCallsBySession };
+      delete remainingToolCalls[id];
+      const remainingMessages = { ...state.messagesBySession };
+      delete remainingMessages[id];
+
+      let newActiveId = state.activeSessionId;
+      if (state.activeSessionId === id) {
+        // Pick the most recently updated remaining session, or null if none left.
+        const sorted = [...remaining].sort(
+          (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        );
+        newActiveId = sorted[0]?.id ?? null;
+      }
+
       return {
-        sessions: state.sessions.filter((s) => s.id !== id),
-        activeSessionId:
-          state.activeSessionId === id ? null : state.activeSessionId,
+        sessions: remaining,
+        activeSessionId: newActiveId,
         toolCallsBySession: remainingToolCalls,
+        messagesBySession: remainingMessages,
+        sessionMutationVersion: state.sessionMutationVersion + 1,
       };
     });
   },
@@ -179,6 +227,46 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
     set((state) => ({
       messagesBySession: { ...state.messagesBySession, [id]: [] },
     }));
+
+    // Background fetch for messages on this session if a gateway endpoint exists.
+    // This is fire-and-forget: UI shows empty initially, then populates when
+    // the server responds. If the endpoint doesn't exist yet (no backend), the
+    // catch silently degrades to the empty array already set above.
+    fetch(`${process.env["NEXT_PUBLIC_HERMES_BASE_URL"] ?? "http://localhost:8000"}/v1/sessions/${id}/messages`, {
+      headers: { Accept: "application/json" },
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const msgs = (await res.json()) as unknown[];
+        if (!Array.isArray(msgs)) return;
+        // Only update if this session is still active (user didn't switch away).
+        if (get().activeSessionId !== id) return;
+        const typed = msgs.filter(
+          (m): m is Message =>
+            m !== null &&
+            typeof m === "object" &&
+            "id" in m &&
+            "role" in m &&
+            "content" in m
+        );
+        set((state) => ({
+          messagesBySession: { ...state.messagesBySession, [id]: typed },
+        }));
+      })
+      .catch(() => undefined);
+  },
+
+  clearActiveSession() {
+    set({ activeSessionId: null });
+  },
+
+  addUserMessage(sessionId: string, message: Message) {
+    set((state) => {
+      const existing = state.messagesBySession[sessionId] ?? [];
+      return {
+        messagesBySession: { ...state.messagesBySession, [sessionId]: [...existing, message] },
+      };
+    });
   },
 
   appendMessage(sessionId: string, message: Message) {

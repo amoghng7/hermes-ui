@@ -7,11 +7,16 @@
  * Because Zustand stores are module-level singletons, no React context is
  * strictly required.  This component exists solely to:
  *   1. Trigger `bootstrapStore()` once on the client side.
- *   2. Give us a clear seam to wrap in tests or replace with a mock store.
+ *   2. Poll for session updates every 30 seconds so the sidebar stays fresh
+ *      when other clients (CLI, Telegram, etc.) create sessions.
+ *   3. Give us a clear seam to wrap in tests or replace with a mock store.
  */
 
 import { useEffect } from "react";
-import { bootstrapStore } from "@/store/hermesStore";
+import { bootstrapStore, useHermesStore } from "@/store/hermesStore";
+import { listSessions } from "@/lib/hermesClient";
+
+const POLL_INTERVAL_MS = 30_000;
 
 interface HermesProviderProps {
   children: React.ReactNode;
@@ -19,7 +24,52 @@ interface HermesProviderProps {
 
 export function HermesProvider({ children }: HermesProviderProps) {
   useEffect(() => {
-    bootstrapStore();
+    let mounted = true;
+    let isPolling = false;
+    let pollVersion = 0;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const poll = async () => {
+      if (!mounted || isPolling) return;
+      isPolling = true;
+      const version = ++pollVersion;
+      const { activeProfileId, _setSessions, sessionMutationVersion } = useHermesStore.getState();
+      if (!activeProfileId) { isPolling = false; return; }
+      try {
+        const sessions = await listSessions(activeProfileId);
+        // Discard results if unmounted, a newer poll started, the profile changed,
+        // or a local mutation happened since this poll started.
+        const current = useHermesStore.getState();
+        if (
+          !mounted ||
+          version !== pollVersion ||
+          current.activeProfileId !== activeProfileId ||
+          current.sessionMutationVersion !== sessionMutationVersion
+        ) {
+          // Stale result — discarding silently.
+          return;
+        }
+        _setSessions(sessions);
+      } catch {
+        // Silently tolerate gateway errors during background polling.
+      } finally {
+        isPolling = false;
+      }
+    };
+
+    // Await bootstrap before polling so the first poll finds a valid activeProfileId.
+    // bootstrapStore() handles its own errors internally; we only need to suppress
+    // the unhandled-rejection warning here since there is nothing actionable to do.
+    bootstrapStore().then(() => {
+      if (!mounted) return;
+      void poll();
+      intervalId = setInterval(() => { void poll(); }, POLL_INTERVAL_MS);
+    }).catch(() => undefined);
+
+    return () => {
+      mounted = false;
+      if (intervalId !== null) clearInterval(intervalId);
+    };
   }, []);
 
   return <>{children}</>;
