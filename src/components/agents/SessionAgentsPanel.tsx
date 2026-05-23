@@ -49,13 +49,14 @@ function statusBadgeClass(status: AgentStatus): string {
 }
 
 /** Deterministic hue from a string name — same name always → same color.
- *  Uses 31 as the multiplier, a common prime for polynomial rolling hashes. */
+ *  Uses 31 as the multiplier, a common prime for polynomial rolling hashes.
+ *  `>>> 0` converts to an unsigned 32-bit integer to guarantee a non-negative result. */
 function nameToHue(name: string): number {
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
-    hash = (hash * 31 + name.charCodeAt(i)) & 0xffffffff;
+    hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
   }
-  return Math.abs(hash) % 360;
+  return hash % 360;
 }
 
 // ---------------------------------------------------------------------------
@@ -74,18 +75,11 @@ function AgentCard({ agent, onClick }: AgentCardProps) {
   const accentColor = `hsl(${hue} 50% 65%)`;
 
   return (
-    <div
-      className="agent-card rounded-2xl overflow-hidden cursor-pointer hover:border-primary/30 transition-colors group"
+    <button
+      type="button"
+      className="agent-card rounded-2xl overflow-hidden cursor-pointer hover:border-primary/30 transition-colors group w-full text-left"
       onClick={onClick}
-      role="button"
-      tabIndex={0}
       aria-label={`Agent: ${agent.name}, status: ${statusLabel(agent.status)}`}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onClick();
-        }
-      }}
     >
       {/* Card header */}
       <div className="px-4 pt-3 pb-2 flex items-start gap-3">
@@ -191,7 +185,7 @@ function AgentCard({ agent, onClick }: AgentCardProps) {
           ))}
         </div>
       )}
-    </div>
+    </button>
   );
 }
 

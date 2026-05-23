@@ -200,6 +200,9 @@ function detectConfirmation(content: string): ConfirmationRequest | null {
 // delegate_task helper — extract an Agent from a completed delegate_task call
 // ---------------------------------------------------------------------------
 
+/** Accumulates streaming tool-call argument chunks for a single tool call. */
+type ToolCallAccumulator = { id: string; name: string; args: string; done: boolean };
+
 function agentFromDelegateTaskArgs(
   callId: string,
   args: Record<string, unknown>
@@ -209,7 +212,10 @@ function agentFromDelegateTaskArgs(
       ? args["agent_id"]
       : typeof args["id"] === "string"
         ? args["id"]
-        : callId || `agent-${Date.now()}`;
+        : callId ||
+          (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+            ? crypto.randomUUID()
+            : `agent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
 
   const name =
     typeof args["agent_name"] === "string"
@@ -279,7 +285,7 @@ export function ChatWorkspace() {
   // Accumulates streaming tool call argument chunks keyed by call index.
   // `done` is set to true once arguments have been fully parsed to avoid
   // re-parsing every subsequent chunk for the same call.
-  const toolCallAccumRef = useRef<Map<number, { id: string; name: string; args: string; done: boolean }>>(new Map());
+  const toolCallAccumRef = useRef<Map<number, ToolCallAccumulator>>(new Map());
 
   // Clear pending dialogs when the active session changes
   useEffect(() => {
@@ -374,6 +380,10 @@ export function ChatWorkspace() {
                 acc.done = true;
               } catch {
                 // Arguments not yet complete JSON — wait for more chunks.
+                // In development, log malformed args after a reasonable length.
+                if (process.env.NODE_ENV === "development" && acc.args.length > 2000) {
+                  console.warn("[delegate_task] unusually large unparseable args:", acc.args.slice(0, 200));
+                }
               }
             }
           }

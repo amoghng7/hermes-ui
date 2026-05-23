@@ -97,10 +97,10 @@ function isSseChoice(
 
 /**
  * Parse a single raw SSE tool-call entry into a {@link ToolCallDelta}, or
- * return an empty array when the entry carries no useful information.
+ * return `null` when the entry carries no useful information.
  */
-function parseToolCallDelta(rawEntry: unknown): ToolCallDelta[] {
-  if (rawEntry === null || typeof rawEntry !== "object") return [];
+function parseToolCallDelta(rawEntry: unknown): ToolCallDelta | null {
+  if (rawEntry === null || typeof rawEntry !== "object") return null;
   const tc = rawEntry as Record<string, unknown>;
   const index = typeof tc["index"] === "number" ? tc["index"] : 0;
   const id = typeof tc["id"] === "string" ? tc["id"] : undefined;
@@ -110,8 +110,8 @@ function parseToolCallDelta(rawEntry: unknown): ToolCallDelta[] {
   const argumentsDelta =
     fnObj && typeof fnObj["arguments"] === "string" ? fnObj["arguments"] : undefined;
   // Only include entries that carry at least one piece of information.
-  if (id === undefined && name === undefined && argumentsDelta === undefined) return [];
-  return [{ index, id, name, argumentsDelta }];
+  if (id === undefined && name === undefined && argumentsDelta === undefined) return null;
+  return { index, id, name, argumentsDelta };
 }
 
 /**
@@ -139,7 +139,7 @@ function extractChatDelta(parsed: unknown): ChatDelta | null {
   let toolCallsDelta: ChatDelta["toolCallsDelta"];
   const rawToolCalls = choice.delta["tool_calls"];
   if (Array.isArray(rawToolCalls) && rawToolCalls.length > 0) {
-    const deltas = rawToolCalls.flatMap(parseToolCallDelta);
+    const deltas = rawToolCalls.map(parseToolCallDelta).filter((d): d is ToolCallDelta => d !== null);
     if (deltas.length > 0) toolCallsDelta = deltas;
   }
 

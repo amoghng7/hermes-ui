@@ -45,7 +45,9 @@ export function AgentDetailDrawer({ agent, onClose }: AgentDetailDrawerProps) {
     const previouslyFocused = document.activeElement as HTMLElement | null;
     closeBtnRef.current?.focus();
     return () => {
-      previouslyFocused?.focus();
+      if (previouslyFocused && document.contains(previouslyFocused)) {
+        previouslyFocused.focus();
+      }
     };
   }, []);
 

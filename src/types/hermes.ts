@@ -224,6 +224,8 @@ export interface ChatDelta {
  * Multiple chunks with the same `index` must be merged to reconstruct
  * the full tool call (id + name appear on the first chunk only;
  * `argumentsDelta` is appended on every subsequent chunk).
+ * If `id` or `name` appear on a later chunk, the first-seen value wins —
+ * subsequent duplicates should be ignored when accumulating.
  */
 export interface ToolCallDelta {
   /** Position index of this tool call in the current request batch. */
