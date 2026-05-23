@@ -52,6 +52,11 @@ export function useActiveSession(): Session | null {
   });
 }
 
+/** Returns a session by its ID, or `null` if not found in the local list. */
+export function useSession(sessionId: string): Session | null {
+  return useHermesStore((s) => s.sessions.find((session) => session.id === sessionId) ?? null);
+}
+
 // ---------------------------------------------------------------------------
 // Messages
 // ---------------------------------------------------------------------------
