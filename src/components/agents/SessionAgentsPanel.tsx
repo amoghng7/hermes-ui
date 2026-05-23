@@ -80,7 +80,7 @@ function AgentCard({ agent, onClick }: AgentCardProps) {
       tabIndex={0}
       className="agent-card rounded-2xl overflow-hidden cursor-pointer hover:border-primary/30 transition-colors group w-full text-left"
       onClick={onClick}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onClick(); } }}
       aria-label={`Agent: ${agent.name}, status: ${statusLabel(agent.status)}`}
     >
       {/* Card header */}

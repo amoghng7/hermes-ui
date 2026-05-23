@@ -71,7 +71,7 @@ export function AgentDetailDrawer({ agent, onClose }: AgentDetailDrawerProps) {
     /* Overlay fills the parent aside */
     <div
       className="absolute inset-0 z-30 flex flex-col bg-surface-glass-heavy backdrop-blur-sm"
-      role="dialog"
+      role="region"
       aria-label={`Agent details: ${agent.name}`}
     >
       {/* Header */}
