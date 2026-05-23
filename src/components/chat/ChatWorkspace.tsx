@@ -404,7 +404,15 @@ export function ChatWorkspace() {
         }
       }
 
+      // ── Stream finished cleanly — mark all still-active agents as done ────
       if (streamRunIdRef.current === runId) {
+        const agents = useHermesStore.getState().agents[sessionId] ?? [];
+        for (const agent of agents) {
+          if (agent.status === "active" || agent.status === "waiting") {
+            upsertAgent(sessionId, { ...agent, status: "done", updatedAt: new Date().toISOString() });
+          }
+        }
+
         const applyMarkerStrip = () => {
           assistantContent = stripTrailingJson(assistantContent);
           appendMessage(sessionId, {

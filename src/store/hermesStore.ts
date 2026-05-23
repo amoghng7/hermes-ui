@@ -205,6 +205,8 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
       delete remainingToolCalls[id];
       const remainingMessages = { ...state.messagesBySession };
       delete remainingMessages[id];
+      const remainingAgents = { ...state.agents };
+      delete remainingAgents[id];
 
       let newActiveId = state.activeSessionId;
       if (state.activeSessionId === id) {
@@ -220,6 +222,7 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
         activeSessionId: newActiveId,
         toolCallsBySession: remainingToolCalls,
         messagesBySession: remainingMessages,
+        agents: remainingAgents,
         sessionMutationVersion: state.sessionMutationVersion + 1,
       };
     });

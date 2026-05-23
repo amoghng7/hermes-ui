@@ -243,6 +243,10 @@ export async function* streamChat(
 
       buffer += decoder.decode(value, { stream: true });
 
+      // Normalize CRLF → LF so SSE events split reliably regardless of
+      // server/proxy line-ending conventions (SSE permits both \n\n and \r\n\r\n).
+      buffer = buffer.replace(/\r\n/g, "\n");
+
       // Split on SSE newline boundaries; each event ends with "\n\n"
       const parts = buffer.split("\n\n");
       // Keep the last (possibly incomplete) chunk in the buffer
@@ -269,6 +273,24 @@ export async function* streamChat(
           const delta = extractChatDelta(parsed);
           if (delta) yield delta;
         }
+      }
+    }
+
+    // Flush: the stream closed without a trailing blank line or [DONE].
+    // Process any remaining complete event in the buffer so the last delta
+    // (e.g. final content token or tool_call result) is not silently dropped.
+    buffer += decoder.decode(); // flush the TextDecoder's internal state
+    buffer = buffer.replace(/\r\n/g, "\n");
+    const remaining = buffer.trim();
+    if (remaining) {
+      for (const line of remaining.split("\n")) {
+        if (!line.startsWith("data:")) continue;
+        const data = line.slice(5).trim();
+        if (data === "[DONE]") break;
+        let parsed: unknown;
+        try { parsed = JSON.parse(data); } catch { continue; }
+        const delta = extractChatDelta(parsed);
+        if (delta) yield delta;
       }
     }
   } finally {
