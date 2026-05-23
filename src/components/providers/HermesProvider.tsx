@@ -33,15 +33,23 @@ export function HermesProvider({ children }: HermesProviderProps) {
       if (!mounted || isPolling) return;
       isPolling = true;
       const version = ++pollVersion;
-      const { activeProfileId, _setSessions } = useHermesStore.getState();
+      const { activeProfileId, _setSessions, sessionMutationVersion } = useHermesStore.getState();
       if (!activeProfileId) { isPolling = false; return; }
       try {
         const sessions = await listSessions(activeProfileId);
-        // Discard results if unmounted, a newer poll started, or the profile changed.
+        // Discard results if unmounted, a newer poll started, the profile changed,
+        // or a local mutation happened since this poll started.
         const current = useHermesStore.getState();
-        if (mounted && version === pollVersion && current.activeProfileId === activeProfileId) {
-          _setSessions(sessions);
+        if (
+          !mounted ||
+          version !== pollVersion ||
+          current.activeProfileId !== activeProfileId ||
+          current.sessionMutationVersion !== sessionMutationVersion
+        ) {
+          // Stale result — discarding silently.
+          return;
         }
+        _setSessions(sessions);
       } catch {
         // Silently tolerate gateway errors during background polling.
       } finally {

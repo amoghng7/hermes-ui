@@ -45,6 +45,9 @@ export interface HermesState {
   skills: Skill[];
   mcpServers: McpServer[];
   memory: MemoryEntry[];
+  /** Monotonically incremented every time the session list is mutated locally.
+   *  Used by the background poll to discard stale results. */
+  sessionMutationVersion: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -146,6 +149,7 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
   skills: [],
   mcpServers: [],
   memory: [],
+  sessionMutationVersion: 0,
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
@@ -171,6 +175,7 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
     set((state) => ({
       sessions: [session, ...state.sessions],
       activeSessionId: session.id,
+      sessionMutationVersion: state.sessionMutationVersion + 1,
     }));
     return session;
   },
@@ -179,6 +184,7 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
     const updated = await apiRenameSession(id, title);
     set((state) => ({
       sessions: state.sessions.map((s) => (s.id === id ? updated : s)),
+      sessionMutationVersion: state.sessionMutationVersion + 1,
     }));
   },
 
@@ -207,6 +213,7 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
         activeSessionId: newActiveId,
         toolCallsBySession: remainingToolCalls,
         messagesBySession: remainingMessages,
+        sessionMutationVersion: state.sessionMutationVersion + 1,
       };
     });
   },
@@ -220,6 +227,33 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
     set((state) => ({
       messagesBySession: { ...state.messagesBySession, [id]: [] },
     }));
+
+    // Background fetch for messages on this session if a gateway endpoint exists.
+    // This is fire-and-forget: UI shows empty initially, then populates when
+    // the server responds. If the endpoint doesn't exist yet (no backend), the
+    // catch silently degrades to the empty array already set above.
+    fetch(`${process.env["NEXT_PUBLIC_HERMES_BASE_URL"] ?? "http://localhost:8000"}/v1/sessions/${id}/messages`, {
+      headers: { Accept: "application/json" },
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const msgs = (await res.json()) as unknown[];
+        if (!Array.isArray(msgs)) return;
+        // Only update if this session is still active (user didn't switch away).
+        if (get().activeSessionId !== id) return;
+        const typed = msgs.filter(
+          (m): m is Message =>
+            m !== null &&
+            typeof m === "object" &&
+            "id" in m &&
+            "role" in m &&
+            "content" in m
+        );
+        set((state) => ({
+          messagesBySession: { ...state.messagesBySession, [id]: typed },
+        }));
+      })
+      .catch(() => undefined);
   },
 
   clearActiveSession() {
