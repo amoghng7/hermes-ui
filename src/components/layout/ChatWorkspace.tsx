@@ -29,7 +29,7 @@ import { getSession } from "@/lib/hermesClient";
 
 export interface ChatWorkspaceProps {
   sessionId: string;
-  rightPanel?: "agents" | "swarm" | "none";
+  rightPanel?: "agents" | "none";
 }
 
 // ---------------------------------------------------------------------------
@@ -99,7 +99,10 @@ export function ChatWorkspace({ sessionId, rightPanel = "agents" }: ChatWorkspac
         setGatewayResult("success");
       })
       .catch(() => {
-        if (!cancelled) setGatewayResult("error");
+        if (!cancelled) {
+          clearActiveSession();
+          setGatewayResult("error");
+        }
       });
 
     return () => {
@@ -110,7 +113,11 @@ export function ChatWorkspace({ sessionId, rightPanel = "agents" }: ChatWorkspac
   // ── Loading state ─────────────────────────────────────────────────────────
   if (status === "loading") {
     return (
-      <div className="flex-1 flex gap-6 box-border fluid-main-margin items-center justify-center min-h-[60vh]">
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex-1 flex gap-6 box-border fluid-main-margin items-center justify-center min-h-[60vh]"
+      >
         <div className="flex flex-col items-center gap-4 text-on-surface-variant">
           <span className="material-symbols-outlined animate-spin text-4xl" aria-hidden="true">
             progress_activity
@@ -124,7 +131,10 @@ export function ChatWorkspace({ sessionId, rightPanel = "agents" }: ChatWorkspac
   // ── Not-found state ───────────────────────────────────────────────────────
   if (status === "not-found") {
     return (
-      <div className="flex-1 flex gap-6 box-border fluid-main-margin items-center justify-center min-h-[60vh]">
+      <div
+        role="alert"
+        className="flex-1 flex gap-6 box-border fluid-main-margin items-center justify-center min-h-[60vh]"
+      >
         <div className="flex flex-col items-center gap-4 text-on-surface-variant">
           <span className="material-symbols-outlined text-4xl" aria-hidden="true">error</span>
           <p className="text-sm">Session not found.</p>
