@@ -87,11 +87,13 @@ async function assertOk(response: Response): Promise<void> {
 function isSseChoice(
   value: unknown
 ): value is { delta: Record<string, unknown>; finish_reason: string | null } {
+  const delta = (value as Record<string, unknown>)["delta"];
   return (
     value !== null &&
     typeof value === "object" &&
     "delta" in (value as object) &&
-    typeof (value as Record<string, unknown>)["delta"] === "object"
+    delta !== null &&
+    typeof delta === "object"
   );
 }
 
