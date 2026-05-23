@@ -123,6 +123,13 @@ export interface HermesActions {
    */
   setPendingConfirmation(request: ConfirmationRequest | null): void;
 
+  /**
+   * Add a new agent or update an existing one for a session.
+   * If an agent with the same `id` already exists it is shallowly merged
+   * (new values overwrite old ones); otherwise it is appended.
+   */
+  upsertAgent(sessionId: string, agent: Agent): void;
+
   // Internal helpers exposed for testing / direct use
   _setSessions(sessions: Session[]): void;
   _setMemory(memory: MemoryEntry[]): void;
@@ -316,6 +323,18 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
     set((state) => ({
       agents: { ...state.agents, [sessionId]: agents },
     }));
+  },
+
+  upsertAgent(sessionId: string, agent: Agent) {
+    set((state) => {
+      const existing = state.agents[sessionId] ?? [];
+      const idx = existing.findIndex((a) => a.id === agent.id);
+      const updated =
+        idx === -1
+          ? [...existing, agent]
+          : existing.map((a, i) => (i === idx ? { ...a, ...agent } : a));
+      return { agents: { ...state.agents, [sessionId]: updated } };
+    });
   },
 
   setToolCalls(sessionId: string, calls: ToolCall[]) {

@@ -114,8 +114,31 @@ function extractChatDelta(parsed: unknown): ChatDelta | null {
   const finishReason =
     typeof choice.finish_reason === "string" ? choice.finish_reason : null;
 
-  if (!content && !finishReason) return null;
-  return { content, finishReason };
+  // Extract tool call deltas so callers can detect delegate_task and other
+  // function calls streamed alongside (or instead of) text content.
+  let toolCallsDelta: ChatDelta["toolCallsDelta"];
+  const rawToolCalls = choice.delta["tool_calls"];
+  if (Array.isArray(rawToolCalls) && rawToolCalls.length > 0) {
+    const deltas = (rawToolCalls as unknown[])
+      .filter((tc): tc is Record<string, unknown> => tc !== null && typeof tc === "object")
+      .flatMap((tc) => {
+        const index = typeof tc["index"] === "number" ? tc["index"] : 0;
+        const id = typeof tc["id"] === "string" ? tc["id"] : undefined;
+        const fn = tc["function"];
+        const fnObj = fn !== null && typeof fn === "object" ? (fn as Record<string, unknown>) : null;
+        const name =
+          fnObj && typeof fnObj["name"] === "string" ? fnObj["name"] : undefined;
+        const argumentsDelta =
+          fnObj && typeof fnObj["arguments"] === "string" ? fnObj["arguments"] : undefined;
+        // Only include entries that carry at least one piece of information.
+        if (id === undefined && name === undefined && argumentsDelta === undefined) return [];
+        return [{ index, id, name, argumentsDelta }];
+      });
+    if (deltas.length > 0) toolCallsDelta = deltas;
+  }
+
+  if (!content && !finishReason && !toolCallsDelta) return null;
+  return { content, finishReason, toolCallsDelta };
 }
 
 /** Options for a streaming chat request. */
