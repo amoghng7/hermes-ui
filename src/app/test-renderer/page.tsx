@@ -1,6 +1,7 @@
 "use client";
 
 import type { Message, ToolCall } from "@/types/hermes";
+
 import { MessageRenderer } from "@/components/chat/MessageRenderer";
 
 const MOCK_MESSAGES: Message[] = [
