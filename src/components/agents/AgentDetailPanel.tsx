@@ -212,7 +212,8 @@ function TokenUsageBar({ input, output }: TokenUsageBarProps) {
       {/* Bar */}
       <div
         className="h-2 rounded-full overflow-hidden bg-surface-container-high mb-3 flex"
-        role="presentation"
+        role="img"
+        aria-label={`Token usage: ${inputPct}% prompt, ${outputPct}% completion`}
       >
         <div
           className="h-full rounded-l-full bg-primary/70"
