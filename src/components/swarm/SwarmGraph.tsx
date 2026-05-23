@@ -13,7 +13,7 @@
  * `onAgentSelect(agentId)`.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Agent } from "@/types/hermes";
 
 // ---------------------------------------------------------------------------
@@ -270,9 +270,9 @@ function nodeStatusColors(status: Agent["status"]): {
   switch (status) {
     case "active":
       return {
-        fill: "hsl(var(--color-primary) / 0.2)",
-        stroke: "hsl(var(--color-primary))",
-        pulse: "hsl(var(--color-primary) / 0.5)",
+        fill: "color-mix(in srgb, var(--color-primary) 20%, transparent)",
+        stroke: "var(--color-primary)",
+        pulse: "color-mix(in srgb, var(--color-primary) 50%, transparent)",
       };
     case "waiting":
       return {
@@ -294,18 +294,12 @@ function nodeStatusColors(status: Agent["status"]): {
       };
     default:
       return {
-        fill: "hsl(var(--color-surface-container-high))",
-        stroke: "hsl(var(--color-border-default))",
+        fill: "var(--color-surface-container-high)",
+        stroke: "var(--color-border-default)",
         pulse: "transparent",
       };
   }
 }
-
-// ---------------------------------------------------------------------------
-// SVG defs — arrowhead marker
-// ---------------------------------------------------------------------------
-
-const ARROW_ID = "swarm-arrow";
 
 // ---------------------------------------------------------------------------
 // Component
@@ -323,9 +317,13 @@ export function SwarmGraph({
   );
   const mode = controlledMode ?? internalMode;
   const setMode = (m: "tree" | "activity") => {
-    setInternalMode(m);
+    if (controlledMode === undefined) setInternalMode(m);
     onViewModeChange?.(m);
   };
+
+  // Instance-local SVG marker ID to avoid clashes with multiple instances
+  const uid = useId();
+  const arrowId = `swarm-arrow-${uid}`;
 
   // SVG pan / zoom state
   const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 });
@@ -344,10 +342,11 @@ export function SwarmGraph({
     const ro = new ResizeObserver((entries) => {
       const e = entries[0];
       if (e) {
-        setDims({
-          width: e.contentRect.width,
-          height: e.contentRect.height,
-        });
+        const w = Math.round(e.contentRect.width);
+        const h = Math.round(e.contentRect.height);
+        setDims((prev) =>
+          prev.width === w && prev.height === h ? prev : { width: w, height: h },
+        );
       }
     });
     ro.observe(el);
@@ -501,7 +500,7 @@ export function SwarmGraph({
           <defs>
             {/* Arrowhead marker */}
             <marker
-              id={ARROW_ID}
+              id={arrowId}
               markerWidth="8"
               markerHeight="8"
               refX="7"
@@ -510,7 +509,7 @@ export function SwarmGraph({
             >
               <path
                 d="M0,0 L0,6 L8,3 z"
-                fill="hsl(var(--color-border-default))"
+                fill="var(--color-border-default)"
               />
             </marker>
             {/* Pulse animation keyframes via CSS filter */}
@@ -527,7 +526,7 @@ export function SwarmGraph({
             transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}
           >
             {/* ── Edges ── */}
-            {validEdges.map((edge, i) => {
+            {validEdges.map((edge) => {
               const from = posMap.get(edge.from)!;
               const to = posMap.get(edge.to)!;
               const toAgent = agents.find((a) => a.id === edge.to);
@@ -552,19 +551,19 @@ export function SwarmGraph({
 
               return (
                 <line
-                  key={i}
+                  key={`${edge.from}->${edge.to}`}
                   x1={x1}
                   y1={y1}
                   x2={x2}
                   y2={y2}
                   stroke={
                     isInFlight
-                      ? "hsl(var(--color-primary) / 0.8)"
-                      : "hsl(var(--color-border-default) / 0.5)"
+                      ? "color-mix(in srgb, var(--color-primary) 80%, transparent)"
+                      : "color-mix(in srgb, var(--color-border-default) 50%, transparent)"
                   }
                   strokeWidth={isInFlight ? 2 : 1.5}
                   strokeDasharray={isInFlight ? "none" : undefined}
-                  markerEnd={`url(#${ARROW_ID})`}
+                  markerEnd={`url(#${arrowId})`}
                 />
               );
             })}
@@ -652,7 +651,7 @@ export function SwarmGraph({
                     style={{
                       userSelect: "none",
                       pointerEvents: "none",
-                      fill: "hsl(var(--color-text-muted))",
+                      fill: "var(--color-text-muted)",
                     }}
                   >
                     {agent.name.length > 12

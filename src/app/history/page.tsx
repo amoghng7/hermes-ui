@@ -55,6 +55,9 @@ const MOCK_EDGES: SwarmEdge[] = MOCK_AGENTS
 
 export default function HistoryPage() {
   const [showCard, setShowCard] = useState(true);
+  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(
+    MOCK_AGENTS[0] ?? null,
+  );
   const dialogRef = useRef<HTMLDivElement>(null);
   const dismissButtonRef = useRef<HTMLButtonElement>(null);
   const [model, setModel] = useState("hermes");
@@ -175,12 +178,15 @@ export default function HistoryPage() {
           edges={MOCK_EDGES}
           onAgentSelect={(id) => {
             const agent = MOCK_AGENTS.find((a) => a.id === id);
-            if (agent) setShowCard(true);
+            if (agent) {
+              setSelectedAgent(agent);
+              setShowCard(true);
+            }
           }}
         />
 
         {/* Accessible dialog overlay */}
-        {showCard && (
+        {showCard && selectedAgent && (
             <div
               ref={dialogRef}
               role="dialog"
@@ -191,14 +197,14 @@ export default function HistoryPage() {
             >
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-12 h-12 bg-primary-container flex items-center justify-center rounded-full">
-                  <span className="material-symbols-outlined text-white" aria-hidden="true">person</span>
+                  <span className="material-symbols-outlined text-white" aria-hidden="true">smart_toy</span>
                 </div>
                 <div>
                   <h4 id="agent-card-title" className="font-h1 text-[1.125rem] font-bold leading-tight text-on-surface">
-                    Code Review Agent
+                    {selectedAgent.name}
                   </h4>
                   <p className="text-[0.75rem] text-text-muted font-code uppercase tracking-widest">
-                    Name: sarah
+                    {selectedAgent.status}
                   </p>
                 </div>
               </div>
@@ -208,7 +214,7 @@ export default function HistoryPage() {
                     Role Description
                   </h5>
                   <p className="text-[0.875rem] leading-relaxed text-on-surface-variant">
-                    Reviews the agent generated code and adds review issues if any.
+                    {selectedAgent.description ?? "No description available."}
                   </p>
                 </section>
               </div>
@@ -218,7 +224,7 @@ export default function HistoryPage() {
                     <span className="material-symbols-outlined text-[0.875rem] text-primary" aria-hidden="true">token</span>
                   </div>
                   <span className="text-[0.6875rem] font-bold tracking-wider uppercase text-text-muted">
-                    7 Tools
+                    {selectedAgent.tools?.length ?? 0} Tools
                   </span>
                 </div>
                 <button
