@@ -277,7 +277,9 @@ export function ChatWorkspace() {
   const abortRef = useRef<AbortController | null>(null);
   const streamRunIdRef = useRef(0);
   // Accumulates streaming tool call argument chunks keyed by call index.
-  const toolCallAccumRef = useRef<Map<number, { id: string; name: string; args: string }>>(new Map());
+  // `done` is set to true once arguments have been fully parsed to avoid
+  // re-parsing every subsequent chunk for the same call.
+  const toolCallAccumRef = useRef<Map<number, { id: string; name: string; args: string; done: boolean }>>(new Map());
 
   // Clear pending dialogs when the active session changes
   useEffect(() => {
@@ -359,16 +361,17 @@ export function ChatWorkspace() {
         // ── delegate_task detection (SSE tool_calls) ────────────────────────
         if (delta.toolCallsDelta) {
           for (const tc of delta.toolCallsDelta) {
-            const acc = toolCallAccumRef.current.get(tc.index) ?? { id: "", name: "", args: "" };
+            const acc = toolCallAccumRef.current.get(tc.index) ?? { id: "", name: "", args: "", done: false };
             if (tc.id) acc.id = tc.id;
             if (tc.name) acc.name = tc.name;
             if (tc.argumentsDelta) acc.args += tc.argumentsDelta;
             toolCallAccumRef.current.set(tc.index, acc);
 
-            if (acc.name === "delegate_task" && acc.args) {
+            if (!acc.done && acc.name === "delegate_task" && acc.args) {
               try {
                 const parsedArgs = JSON.parse(acc.args) as Record<string, unknown>;
                 upsertAgent(sessionId, agentFromDelegateTaskArgs(acc.id, parsedArgs));
+                acc.done = true;
               } catch {
                 // Arguments not yet complete JSON — wait for more chunks.
               }

@@ -13,7 +13,7 @@
  */
 
 import { useState } from "react";
-import { useAgents, useToolCalls } from "@/store/hooks";
+import { useAgents } from "@/store/hooks";
 import type { Agent } from "@/types/hermes";
 import { AgentDetailDrawer } from "@/components/agents/AgentDetailDrawer";
 
@@ -48,7 +48,8 @@ function statusBadgeClass(status: AgentStatus): string {
   }
 }
 
-/** Deterministic hue from a string name — same name always → same color. */
+/** Deterministic hue from a string name — same name always → same color.
+ *  Uses 31 as the multiplier, a common prime for polynomial rolling hashes. */
 function nameToHue(name: string): number {
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
@@ -238,7 +239,6 @@ export interface SessionAgentsPanelProps {
 
 export function SessionAgentsPanel({ sessionId }: SessionAgentsPanelProps) {
   const agents = useAgents(sessionId);
-  const toolCalls = useToolCalls(sessionId);
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
 
   const activeCount = agents.filter(
@@ -292,7 +292,6 @@ export function SessionAgentsPanel({ sessionId }: SessionAgentsPanelProps) {
       {selectedAgent !== null && (
         <AgentDetailDrawer
           agent={selectedAgent}
-          toolCalls={toolCalls}
           onClose={() => setSelectedAgent(null)}
         />
       )}

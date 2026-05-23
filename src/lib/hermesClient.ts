@@ -21,6 +21,7 @@ import type {
   Session,
   Skill,
   ToolCall,
+  ToolCallDelta,
 } from "@/types/hermes";
 
 // ---------------------------------------------------------------------------
@@ -95,6 +96,25 @@ function isSseChoice(
 }
 
 /**
+ * Parse a single raw SSE tool-call entry into a {@link ToolCallDelta}, or
+ * return an empty array when the entry carries no useful information.
+ */
+function parseToolCallDelta(rawEntry: unknown): ToolCallDelta[] {
+  if (rawEntry === null || typeof rawEntry !== "object") return [];
+  const tc = rawEntry as Record<string, unknown>;
+  const index = typeof tc["index"] === "number" ? tc["index"] : 0;
+  const id = typeof tc["id"] === "string" ? tc["id"] : undefined;
+  const fn = tc["function"];
+  const fnObj = fn !== null && typeof fn === "object" ? (fn as Record<string, unknown>) : null;
+  const name = fnObj && typeof fnObj["name"] === "string" ? fnObj["name"] : undefined;
+  const argumentsDelta =
+    fnObj && typeof fnObj["arguments"] === "string" ? fnObj["arguments"] : undefined;
+  // Only include entries that carry at least one piece of information.
+  if (id === undefined && name === undefined && argumentsDelta === undefined) return [];
+  return [{ index, id, name, argumentsDelta }];
+}
+
+/**
  * Extract a {@link ChatDelta} from a raw parsed SSE chunk.
  * Returns `null` when the chunk does not contain a usable delta.
  *
@@ -119,21 +139,7 @@ function extractChatDelta(parsed: unknown): ChatDelta | null {
   let toolCallsDelta: ChatDelta["toolCallsDelta"];
   const rawToolCalls = choice.delta["tool_calls"];
   if (Array.isArray(rawToolCalls) && rawToolCalls.length > 0) {
-    const deltas = (rawToolCalls as unknown[])
-      .filter((tc): tc is Record<string, unknown> => tc !== null && typeof tc === "object")
-      .flatMap((tc) => {
-        const index = typeof tc["index"] === "number" ? tc["index"] : 0;
-        const id = typeof tc["id"] === "string" ? tc["id"] : undefined;
-        const fn = tc["function"];
-        const fnObj = fn !== null && typeof fn === "object" ? (fn as Record<string, unknown>) : null;
-        const name =
-          fnObj && typeof fnObj["name"] === "string" ? fnObj["name"] : undefined;
-        const argumentsDelta =
-          fnObj && typeof fnObj["arguments"] === "string" ? fnObj["arguments"] : undefined;
-        // Only include entries that carry at least one piece of information.
-        if (id === undefined && name === undefined && argumentsDelta === undefined) return [];
-        return [{ index, id, name, argumentsDelta }];
-      });
+    const deltas = rawToolCalls.flatMap(parseToolCallDelta);
     if (deltas.length > 0) toolCallsDelta = deltas;
   }
 

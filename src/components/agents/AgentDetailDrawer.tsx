@@ -8,13 +8,11 @@
  * layer over the parent aside so the chat panel is never obscured.
  */
 
-import type { Agent, ToolCall } from "@/types/hermes";
-import { ToolTimeline } from "@/components/chat/ToolTimeline";
+import { useEffect, useRef } from "react";
+import type { Agent } from "@/types/hermes";
 
 export interface AgentDetailDrawerProps {
   agent: Agent;
-  /** Tool calls attributed to this agent (may be empty). */
-  toolCalls: ToolCall[];
   onClose: () => void;
 }
 
@@ -38,8 +36,30 @@ function statusColor(status: Agent["status"]): string {
   }
 }
 
-export function AgentDetailDrawer({ agent, toolCalls, onClose }: AgentDetailDrawerProps) {
+export function AgentDetailDrawer({ agent, onClose }: AgentDetailDrawerProps) {
   const isActive = agent.status === "active" || agent.status === "waiting";
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Move focus to the close button when the drawer opens, and restore on close.
+  useEffect(() => {
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+    closeBtnRef.current?.focus();
+    return () => {
+      previouslyFocused?.focus();
+    };
+  }, []);
+
+  // Close on Escape key.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   return (
     /* Overlay fills the parent aside */
@@ -52,6 +72,7 @@ export function AgentDetailDrawer({ agent, toolCalls, onClose }: AgentDetailDraw
       {/* Header */}
       <div className="flex items-center gap-3 px-5 py-4 border-b border-border-subtle">
         <button
+          ref={closeBtnRef}
           type="button"
           onClick={onClose}
           aria-label="Close agent details"
@@ -143,19 +164,6 @@ export function AgentDetailDrawer({ agent, toolCalls, onClose }: AgentDetailDraw
                 <p className="font-code text-sm text-on-surface font-medium">{agent.tokenUsage.output.toLocaleString()}</p>
               </div>
             </div>
-          </section>
-        )}
-
-        {/* Tool call timeline */}
-        {toolCalls.length > 0 ? (
-          <section aria-label="Tool calls">
-            <p className="text-[0.6875rem] uppercase tracking-wider text-text-muted mb-2">Tool calls</p>
-            <ToolTimeline toolCalls={toolCalls} />
-          </section>
-        ) : (
-          <section aria-label="Tool calls">
-            <p className="text-[0.6875rem] uppercase tracking-wider text-text-muted mb-2">Tool calls</p>
-            <p className="text-sm text-text-muted">No tool calls recorded for this agent.</p>
           </section>
         )}
 
