@@ -123,7 +123,7 @@ export function SwarmMinimapPanel({
             <span className="px-2.5 py-0.5 rounded-full bg-surface-container text-text-muted text-[0.625rem] uppercase font-bold tracking-wider">
               {`${agents.length} agent${agents.length !== 1 ? "s" : ""}`}
             </span>
-            {selectedAgentId && (
+            {selectedAgentId && sessionId && selectedAgentId.startsWith(`${sessionId}/`) && (
               <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-[0.625rem] uppercase font-bold tracking-wider flex items-center gap-1">
                 <span
                   className="material-symbols-outlined text-[0.75rem]"

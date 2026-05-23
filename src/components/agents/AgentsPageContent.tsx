@@ -93,6 +93,10 @@ export function AgentsPageContent() {
 
   const handleFilterSession = (id: string | null) => {
     setFilterSessionId(id);
+    // Clear selection if the selected agent doesn't belong to the new filter.
+    if (id !== null && selectedAgentId && !selectedAgentId.startsWith(`${id}/`)) {
+      setSelectedAgentId(null);
+    }
   };
 
   const handleMinimapSelect = (agentId: string) => {
