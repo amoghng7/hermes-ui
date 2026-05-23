@@ -52,7 +52,14 @@ export function useActiveSession(): Session | null {
   });
 }
 
-/** Returns a session by its ID, or `null` if not found in the local list. */
+/**
+ * Returns the session with the given ID from the local Zustand store,
+ * or `null` if no such session exists in the store.
+ *
+ * This hook is a pure selector — it does **not** trigger any network fetch.
+ * Fetching a session by ID (e.g. for deep-link routing) is handled by
+ * `ChatWorkspace`, which calls `getSession()` when the session is absent.
+ */
 export function useSession(sessionId: string): Session | null {
   return useHermesStore((s) => s.sessions.find((session) => session.id === sessionId) ?? null);
 }

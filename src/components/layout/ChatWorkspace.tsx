@@ -41,8 +41,11 @@ export function ChatWorkspace({ sessionId, rightPanel = "agents" }: ChatWorkspac
   const clearActiveSession = useHermesStore((s) => s.clearActiveSession);
   const sessions = useSessions();
 
+  // Whether this workspace represents a brand-new (unsaved) session.
+  const isNew = sessionId === "new";
+
   // Computed during render — true once the session appears in the local list.
-  const sessionFound = sessionId !== "new" && sessions.some((s) => s.id === sessionId);
+  const sessionFound = !isNew && sessions.some((s) => s.id === sessionId);
 
   // Tracks the outcome of an async gateway fetch.
   // All writes happen in async callbacks (.then/.catch) which are never flagged
@@ -50,9 +53,10 @@ export function ChatWorkspace({ sessionId, rightPanel = "agents" }: ChatWorkspac
   type GatewayResult = "idle" | "success" | "error";
   const [gatewayResult, setGatewayResult] = useState<GatewayResult>("idle");
 
-  // Render-time state reset when sessionId changes — avoids a separate effect
-  // just to call setState.
-  // See: https://react.dev/reference/react/useState#storing-information-from-previous-renders
+  // Render-time state reset when sessionId changes — keeps status correct on
+  // the very first render after a route change (avoids a one-frame stale flash).
+  // This is the pattern React recommends for "storing information from previous
+  // renders": https://react.dev/reference/react/useState#storing-information-from-previous-renders
   const [prevSessionId, setPrevSessionId] = useState(sessionId);
   if (prevSessionId !== sessionId) {
     setPrevSessionId(sessionId);
@@ -61,14 +65,14 @@ export function ChatWorkspace({ sessionId, rightPanel = "agents" }: ChatWorkspac
 
   // Derive workspace status from synchronous reactive state — no extra setState needed.
   const status: "loading" | "ready" | "not-found" =
-    sessionId === "new" || sessionFound || gatewayResult === "success"
+    isNew || sessionFound || gatewayResult === "success"
       ? "ready"
       : gatewayResult === "error"
         ? "not-found"
         : "loading";
 
   useEffect(() => {
-    if (sessionId === "new") {
+    if (isNew) {
       clearActiveSession();
       return;
     }
@@ -101,7 +105,7 @@ export function ChatWorkspace({ sessionId, rightPanel = "agents" }: ChatWorkspac
     return () => {
       cancelled = true;
     };
-  }, [sessionId, sessionFound, setActiveSession, clearActiveSession]);
+  }, [sessionId, isNew, sessionFound, setActiveSession, clearActiveSession]);
 
   // ── Loading state ─────────────────────────────────────────────────────────
   if (status === "loading") {
@@ -138,7 +142,7 @@ export function ChatWorkspace({ sessionId, rightPanel = "agents" }: ChatWorkspac
       <ThreadList />
       <ChatSection sessionId={sessionId} />
       {rightPanel === "agents" && (
-        <SessionAgentsPanel sessionId={sessionId === "new" ? null : sessionId} />
+        <SessionAgentsPanel sessionId={isNew ? null : sessionId} />
       )}
     </div>
   );
