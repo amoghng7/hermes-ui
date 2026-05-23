@@ -21,6 +21,7 @@ import type {
   Session,
   Skill,
   ToolCall,
+  ToolCallDelta,
 } from "@/types/hermes";
 
 // ---------------------------------------------------------------------------
@@ -86,12 +87,36 @@ async function assertOk(response: Response): Promise<void> {
 function isSseChoice(
   value: unknown
 ): value is { delta: Record<string, unknown>; finish_reason: string | null } {
+  const delta = (value as Record<string, unknown>)["delta"];
   return (
     value !== null &&
     typeof value === "object" &&
     "delta" in (value as object) &&
-    typeof (value as Record<string, unknown>)["delta"] === "object"
+    delta !== null &&
+    typeof delta === "object"
   );
+}
+
+/**
+ * Parse a single raw SSE tool-call entry into a {@link ToolCallDelta}, or
+ * return `null` when the entry carries no useful information or is malformed.
+ */
+function parseToolCallDelta(rawEntry: unknown): ToolCallDelta | null {
+  if (rawEntry === null || typeof rawEntry !== "object") return null;
+  const tc = rawEntry as Record<string, unknown>;
+  // Skip entries with a missing or invalid index — silently coercing to 0 would
+  // cause multiple distinct tool calls to collide in the accumulator.
+  if (typeof tc["index"] !== "number") return null;
+  const index = tc["index"];
+  const id = typeof tc["id"] === "string" ? tc["id"] : undefined;
+  const fn = tc["function"];
+  const fnObj = fn !== null && typeof fn === "object" ? (fn as Record<string, unknown>) : null;
+  const name = fnObj && typeof fnObj["name"] === "string" ? fnObj["name"] : undefined;
+  const argumentsDelta =
+    fnObj && typeof fnObj["arguments"] === "string" ? fnObj["arguments"] : undefined;
+  // Only include entries that carry at least one piece of information.
+  if (id === undefined && name === undefined && argumentsDelta === undefined) return null;
+  return { index, id, name, argumentsDelta };
 }
 
 /**
@@ -114,8 +139,17 @@ function extractChatDelta(parsed: unknown): ChatDelta | null {
   const finishReason =
     typeof choice.finish_reason === "string" ? choice.finish_reason : null;
 
-  if (!content && !finishReason) return null;
-  return { content, finishReason };
+  // Extract tool call deltas so callers can detect delegate_task and other
+  // function calls streamed alongside (or instead of) text content.
+  let toolCallsDelta: ChatDelta["toolCallsDelta"];
+  const rawToolCalls = choice.delta["tool_calls"];
+  if (Array.isArray(rawToolCalls) && rawToolCalls.length > 0) {
+    const deltas = rawToolCalls.map(parseToolCallDelta).filter((d): d is ToolCallDelta => d !== null);
+    if (deltas.length > 0) toolCallsDelta = deltas;
+  }
+
+  if (!content && !finishReason && !toolCallsDelta) return null;
+  return { content, finishReason, toolCallsDelta };
 }
 
 /** Options for a streaming chat request. */
@@ -209,6 +243,10 @@ export async function* streamChat(
 
       buffer += decoder.decode(value, { stream: true });
 
+      // Normalize CRLF → LF so SSE events split reliably regardless of
+      // server/proxy line-ending conventions (SSE permits both \n\n and \r\n\r\n).
+      buffer = buffer.replace(/\r\n/g, "\n");
+
       // Split on SSE newline boundaries; each event ends with "\n\n"
       const parts = buffer.split("\n\n");
       // Keep the last (possibly incomplete) chunk in the buffer
@@ -235,6 +273,24 @@ export async function* streamChat(
           const delta = extractChatDelta(parsed);
           if (delta) yield delta;
         }
+      }
+    }
+
+    // Flush: the stream closed without a trailing blank line or [DONE].
+    // Process any remaining complete event in the buffer so the last delta
+    // (e.g. final content token or tool_call result) is not silently dropped.
+    buffer += decoder.decode(); // flush the TextDecoder's internal state
+    buffer = buffer.replace(/\r\n/g, "\n");
+    const remaining = buffer.trim();
+    if (remaining) {
+      for (const line of remaining.split("\n")) {
+        if (!line.startsWith("data:")) continue;
+        const data = line.slice(5).trim();
+        if (data === "[DONE]") break;
+        let parsed: unknown;
+        try { parsed = JSON.parse(data); } catch { continue; }
+        const delta = extractChatDelta(parsed);
+        if (delta) yield delta;
       }
     }
   } finally {

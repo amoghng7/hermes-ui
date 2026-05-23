@@ -14,6 +14,7 @@ import { ChatInput } from "@/components/chat/ChatInput";
 import { MessageList } from "@/components/chat/MessageList";
 import { AskUserDialog } from "@/components/chat/AskUserDialog";
 import { ConfirmationDialog } from "@/components/chat/ConfirmationDialog";
+import { SessionAgentsPanel } from "@/components/agents/SessionAgentsPanel";
 import { streamChat } from "@/lib/hermesClient";
 import {
   useActiveSession,
@@ -24,7 +25,7 @@ import {
   useToolCallsByMessage,
 } from "@/store/hooks";
 import { useHermesStore } from "@/store/hermesStore";
-import type { AskUserRequest, ConfirmationRequest, Message } from "@/types/hermes";
+import type { Agent, AskUserRequest, ConfirmationRequest, Message } from "@/types/hermes";
 
 function makeMessageId(prefix: string): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -32,6 +33,21 @@ function makeMessageId(prefix: string): string {
   }
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
+
+/** Generate a collision-resistant agent ID when none is provided by the backend. */
+function generateAgentId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `agent-${crypto.randomUUID()}`;
+  }
+  return `agent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * Maximum accumulated argument string length before emitting a dev-mode
+ * warning for a delegate_task call that hasn't parsed to valid JSON.
+ * Exceeding this in a real stream likely indicates a malformed payload.
+ */
+const MAX_DELEGATE_TASK_ARG_LENGTH = 2000;
 
 // ---------------------------------------------------------------------------
 // Detection helpers — parse ask_user / confirmation_required markers from
@@ -196,6 +212,62 @@ function detectConfirmation(content: string): ConfirmationRequest | null {
 }
 
 // ---------------------------------------------------------------------------
+// delegate_task helper — extract an Agent from a completed delegate_task call
+// ---------------------------------------------------------------------------
+
+/** Accumulates streaming tool-call argument chunks for a single tool call. */
+type ToolCallAccumulator = { id: string; name: string; args: string; done: boolean };
+
+function agentFromDelegateTaskArgs(
+  callId: string,
+  args: Record<string, unknown>
+): Agent {
+  const id =
+    typeof args["agent_id"] === "string"
+      ? args["agent_id"]
+      : typeof args["id"] === "string"
+        ? args["id"]
+        : callId || generateAgentId();
+
+  const name =
+    typeof args["agent_name"] === "string"
+      ? args["agent_name"]
+      : typeof args["name"] === "string"
+        ? args["name"]
+        : "Subagent";
+
+  const task =
+    typeof args["task"] === "string" ? args["task"] : undefined;
+
+  const description =
+    typeof args["description"] === "string"
+      ? args["description"]
+      : typeof args["role"] === "string"
+        ? args["role"]
+        : undefined;
+
+  const tools = Array.isArray(args["tools"])
+    ? (args["tools"] as unknown[]).filter((t): t is string => typeof t === "string")
+    : undefined;
+
+  const parentAgentId =
+    typeof args["parent_agent_id"] === "string"
+      ? args["parent_agent_id"]
+      : "orchestrator";
+
+  return {
+    id,
+    name,
+    status: "active",
+    description,
+    task,
+    tools,
+    parentAgentId,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -212,6 +284,7 @@ export function ChatWorkspace() {
   const createSession = useHermesStore((state) => state.createSession);
   const setPendingAskUser = useHermesStore((state) => state.setPendingAskUser);
   const setPendingConfirmation = useHermesStore((state) => state.setPendingConfirmation);
+  const upsertAgent = useHermesStore((state) => state.upsertAgent);
   const pendingAskUser = usePendingAskUser();
   const pendingConfirmation = usePendingConfirmation();
 
@@ -221,6 +294,10 @@ export function ChatWorkspace() {
   const sendingRef = useRef(false);
   const abortRef = useRef<AbortController | null>(null);
   const streamRunIdRef = useRef(0);
+  // Accumulates streaming tool call argument chunks keyed by call index.
+  // `done` is set to true once arguments have been fully parsed to avoid
+  // re-parsing every subsequent chunk for the same call.
+  const toolCallAccumRef = useRef<Map<number, ToolCallAccumulator>>(new Map());
 
   // Clear pending dialogs when the active session changes
   useEffect(() => {
@@ -250,6 +327,8 @@ export function ChatWorkspace() {
     abortRef.current = abortController;
     sendingRef.current = true;
     setIsSending(true);
+    // Reset accumulated tool-call state for this new request.
+    toolCallAccumRef.current = new Map();
     const createdAt = new Date().toISOString();
     const userMessageId = makeMessageId("user");
     const assistantMessageId = makeMessageId("assistant");
@@ -296,9 +375,44 @@ export function ChatWorkspace() {
           content: assistantContent,
           createdAt,
         });
+
+        // ── delegate_task detection (SSE tool_calls) ────────────────────────
+        if (delta.toolCallsDelta) {
+          for (const tc of delta.toolCallsDelta) {
+            const acc = toolCallAccumRef.current.get(tc.index) ?? { id: "", name: "", args: "", done: false };
+            if (tc.id && !acc.id) acc.id = tc.id;
+            if (tc.name && !acc.name) acc.name = tc.name;
+            if (tc.argumentsDelta) acc.args += tc.argumentsDelta;
+            toolCallAccumRef.current.set(tc.index, acc);
+
+            if (!acc.done && acc.name === "delegate_task" && acc.args) {
+              try {
+                const parsedArgs = JSON.parse(acc.args);
+                if (parsedArgs !== null && typeof parsedArgs === "object" && !Array.isArray(parsedArgs)) {
+                  upsertAgent(sessionId, agentFromDelegateTaskArgs(acc.id, parsedArgs as Record<string, unknown>));
+                  acc.done = true;
+                }
+              } catch {
+                // Arguments not yet complete JSON — wait for more chunks.
+                // In development, log malformed args after a reasonable length.
+                if (process.env.NODE_ENV === "development" && acc.args.length > MAX_DELEGATE_TASK_ARG_LENGTH) {
+                  console.warn("[delegate_task] unusually large unparseable args:", acc.args.slice(0, 200));
+                }
+              }
+            }
+          }
+        }
       }
 
+      // ── Stream finished cleanly — mark all still-active agents as done ────
       if (streamRunIdRef.current === runId) {
+        const agents = useHermesStore.getState().agents[sessionId] ?? [];
+        for (const agent of agents) {
+          if (agent.status === "active" || agent.status === "waiting") {
+            upsertAgent(sessionId, { ...agent, status: "done", updatedAt: new Date().toISOString() });
+          }
+        }
+
         const applyMarkerStrip = () => {
           assistantContent = stripTrailingJson(assistantContent);
           appendMessage(sessionId, {
@@ -451,76 +565,8 @@ export function ChatWorkspace() {
         )}
       </section>
 
-      {/* Right swarm topology panel */}
-      <aside
-        aria-label="Swarm topology"
-        className="hidden xl:flex xl:w-[35%] glass-panel rounded-3xl flex-col overflow-hidden relative"
-      >
-        <div className="p-6 border-b border-border-subtle">
-          <h3 className="font-h1 text-xl font-semibold text-on-surface">
-            Swarm Agents
-          </h3>
-          <div className="flex gap-2 mt-2">
-            <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[0.6875rem] uppercase font-bold tracking-wider">
-              Tree Hierarchy
-            </span>
-            <span className="px-3 py-1 rounded-full bg-surface-container text-text-muted text-[0.6875rem] uppercase font-bold tracking-wider">
-              Live Status
-            </span>
-          </div>
-        </div>
-        <div className="flex-1 relative flex items-center justify-center overflow-hidden">
-          <svg
-            aria-hidden="true"
-            className="absolute inset-0 w-full h-full pointer-events-none"
-          >
-            <line
-              className="topology-line"
-              stroke="var(--color-primary)"
-              strokeOpacity="0.25"
-              strokeWidth="1"
-              x1="50%"
-              y1="15%"
-              x2="25%"
-              y2="35%"
-            />
-            <line
-              className="topology-line"
-              stroke="var(--color-primary)"
-              strokeOpacity="0.25"
-              strokeWidth="1"
-              x1="50%"
-              y1="15%"
-              x2="75%"
-              y2="35%"
-            />
-          </svg>
-
-          <div className="absolute top-[8%] left-1/2 -translate-x-1/2 z-20">
-            <div className="bg-surface-container border border-primary/20 w-28 rounded-xl p-2 flex flex-col items-center gap-1 shadow-[var(--shadow-glow)]">
-              <div className="w-10 h-10 rounded-full border-2 border-primary/50 avatar-glow bg-primary-container flex items-center justify-center">
-                <span className="material-symbols-outlined text-white text-sm" aria-hidden="true">
-                  memory
-                </span>
-              </div>
-              <div className="text-center">
-                <div className="text-[0.6875rem] font-bold text-on-surface uppercase tracking-wider">
-                  ORCHESTRATOR
-                </div>
-                <div className="text-[0.6875rem] text-primary/80 font-code">
-                  V_CORE.ROOT
-                </div>
-              </div>
-              <div className="flex items-center gap-1" aria-label="Status: Active">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" aria-hidden="true" />
-                <span className="text-[0.6875rem] text-primary font-bold">
-                  ACTIVE
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </aside>
+      {/* Right swarm topology panel — live session agents */}
+      <SessionAgentsPanel sessionId={activeSessionId} />
     </>
   );
 }

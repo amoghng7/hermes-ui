@@ -98,10 +98,24 @@ export interface Agent {
   name: string;
   /** Current execution state. */
   status: "idle" | "active" | "waiting" | "error" | "done";
-  /** Optional human-readable description of what this agent does. */
+  /** Optional human-readable description / role of what this agent does. */
   description?: string;
   /** ISO-8601 timestamp of the last status change. */
   updatedAt: string;
+  /** List of tool names available to this agent. */
+  tools?: string[];
+  /** ID of the parent agent that delegated work to this agent, if any. */
+  parentAgentId?: string;
+  /** The task description assigned to this agent by its parent. */
+  task?: string;
+  /** Token usage recorded for this agent, if available. */
+  tokenUsage?: TokenUsage;
+}
+
+/** Token consumption recorded for an agent run. */
+export interface TokenUsage {
+  input: number;
+  output: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -207,4 +221,25 @@ export interface ChatDelta {
   content: string;
   /** The finish reason once streaming is complete, or null while streaming. */
   finishReason: string | null;
+  /** Tool call chunk deltas from the SSE stream, if any. */
+  toolCallsDelta?: ToolCallDelta[];
+}
+
+/**
+ * A partial tool-call chunk streamed from a single SSE event.
+ * Multiple chunks with the same `index` must be merged to reconstruct
+ * the full tool call (id + name appear on the first chunk only;
+ * `argumentsDelta` is appended on every subsequent chunk).
+ * If `id` or `name` appear on a later chunk, the first-seen value wins —
+ * subsequent duplicates should be ignored when accumulating.
+ */
+export interface ToolCallDelta {
+  /** Position index of this tool call in the current request batch. */
+  index: number;
+  /** Stable call ID — present only on the first chunk for this index. */
+  id?: string;
+  /** Function name — present only on the first chunk for this index. */
+  name?: string;
+  /** Partial JSON arguments string to be appended to the accumulated buffer. */
+  argumentsDelta?: string;
 }
