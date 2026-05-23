@@ -12,7 +12,7 @@
  * Clicking an agent card opens AgentDetailDrawer overlaid on this panel.
  */
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useAgents } from "@/store/hooks";
 import type { Agent } from "@/types/hermes";
 import { AgentDetailDrawer } from "@/components/agents/AgentDetailDrawer";
@@ -71,7 +71,7 @@ interface AgentCardProps {
 function AgentCard({ agent, onClick }: AgentCardProps) {
   const [toolsExpanded, setToolsExpanded] = useState(false);
   const isActive = agent.status === "active" || agent.status === "waiting";
-  const hue = nameToHue(agent.name);
+  const hue = useMemo(() => nameToHue(agent.name), [agent.name]);
   const accentColor = `hsl(${hue} 50% 65%)`;
 
   return (
@@ -143,7 +143,7 @@ function AgentCard({ agent, onClick }: AgentCardProps) {
         {agent.tools && agent.tools.length > 0 && (
           <button
             type="button"
-            className="flex items-center gap-1 hover:text-on-surface transition-colors ml-auto focus-visible:outline-none"
+            className="flex items-center gap-1 hover:text-on-surface transition-colors ml-auto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
             onClick={(e) => {
               e.stopPropagation();
               setToolsExpanded((v) => !v);

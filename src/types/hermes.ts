@@ -109,7 +109,13 @@ export interface Agent {
   /** The task description assigned to this agent by its parent. */
   task?: string;
   /** Token usage recorded for this agent, if available. */
-  tokenUsage?: { input: number; output: number };
+  tokenUsage?: TokenUsage;
+}
+
+/** Token consumption recorded for an agent run. */
+export interface TokenUsage {
+  input: number;
+  output: number;
 }
 
 // ---------------------------------------------------------------------------

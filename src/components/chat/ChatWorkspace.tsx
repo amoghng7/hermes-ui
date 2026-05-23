@@ -34,6 +34,21 @@ function makeMessageId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** Generate a collision-resistant agent ID when none is provided by the backend. */
+function generateAgentId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return `agent-${crypto.randomUUID()}`;
+  }
+  return `agent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/**
+ * Maximum accumulated argument string length before emitting a dev-mode
+ * warning for a delegate_task call that hasn't parsed to valid JSON.
+ * Exceeding this in a real stream likely indicates a malformed payload.
+ */
+const MAX_DELEGATE_TASK_ARG_LENGTH = 2000;
+
 // ---------------------------------------------------------------------------
 // Detection helpers — parse ask_user / confirmation_required markers from
 // assistant message content.  The Hermes backend embeds these as JSON blocks.
@@ -212,10 +227,7 @@ function agentFromDelegateTaskArgs(
       ? args["agent_id"]
       : typeof args["id"] === "string"
         ? args["id"]
-        : callId ||
-          (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-            ? crypto.randomUUID()
-            : `agent-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
+        : callId || generateAgentId();
 
   const name =
     typeof args["agent_name"] === "string"
@@ -381,7 +393,7 @@ export function ChatWorkspace() {
               } catch {
                 // Arguments not yet complete JSON — wait for more chunks.
                 // In development, log malformed args after a reasonable length.
-                if (process.env.NODE_ENV === "development" && acc.args.length > 2000) {
+                if (process.env.NODE_ENV === "development" && acc.args.length > MAX_DELEGATE_TASK_ARG_LENGTH) {
                   console.warn("[delegate_task] unusually large unparseable args:", acc.args.slice(0, 200));
                 }
               }

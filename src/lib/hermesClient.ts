@@ -97,12 +97,15 @@ function isSseChoice(
 
 /**
  * Parse a single raw SSE tool-call entry into a {@link ToolCallDelta}, or
- * return `null` when the entry carries no useful information.
+ * return `null` when the entry carries no useful information or is malformed.
  */
 function parseToolCallDelta(rawEntry: unknown): ToolCallDelta | null {
   if (rawEntry === null || typeof rawEntry !== "object") return null;
   const tc = rawEntry as Record<string, unknown>;
-  const index = typeof tc["index"] === "number" ? tc["index"] : 0;
+  // Skip entries with a missing or invalid index — silently coercing to 0 would
+  // cause multiple distinct tool calls to collide in the accumulator.
+  if (typeof tc["index"] !== "number") return null;
+  const index = tc["index"];
   const id = typeof tc["id"] === "string" ? tc["id"] : undefined;
   const fn = tc["function"];
   const fnObj = fn !== null && typeof fn === "object" ? (fn as Record<string, unknown>) : null;
