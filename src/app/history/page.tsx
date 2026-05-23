@@ -2,7 +2,56 @@
 
 import { ThreadList } from "@/components/chat/ThreadList";
 import { ChatInput } from "@/components/chat/ChatInput";
+import { SwarmGraph } from "@/components/swarm/SwarmGraph";
+import type { SwarmEdge } from "@/components/swarm/SwarmGraph";
 import { useState, useEffect, useRef } from "react";
+import type { Agent } from "@/types/hermes";
+
+// ---------------------------------------------------------------------------
+// Mock agents for the history page (static demonstration data)
+// ---------------------------------------------------------------------------
+
+const MOCK_AGENTS: Agent[] = [
+  {
+    id: "orchestrator",
+    name: "Orchestrator",
+    status: "done",
+    description: "Main swarm coordinator",
+    updatedAt: new Date(Date.now() - 120_000).toISOString(),
+    tools: ["delegate_task", "synthesize"],
+  },
+  {
+    id: "agent-07",
+    name: "Agent 07",
+    status: "done",
+    description: "Safety Focus — ethical threshold analysis",
+    parentAgentId: "orchestrator",
+    updatedAt: new Date(Date.now() - 90_000).toISOString(),
+    tools: ["analyze", "flag", "report"],
+  },
+  {
+    id: "agent-12",
+    name: "Agent 12",
+    status: "done",
+    description: "Efficiency Focus — throughput optimisation",
+    parentAgentId: "orchestrator",
+    updatedAt: new Date(Date.now() - 60_000).toISOString(),
+    tools: ["optimize", "benchmark"],
+  },
+  {
+    id: "agent-synthesis",
+    name: "Synthesis",
+    status: "done",
+    description: "Mediation — hybrid threshold consensus",
+    parentAgentId: "orchestrator",
+    updatedAt: new Date(Date.now() - 30_000).toISOString(),
+    tools: ["mediate", "consensus"],
+  },
+];
+
+const MOCK_EDGES: SwarmEdge[] = MOCK_AGENTS
+  .filter((a) => a.parentAgentId)
+  .map((a) => ({ from: a.parentAgentId!, to: a.id }));
 
 export default function HistoryPage() {
   const [showCard, setShowCard] = useState(true);
@@ -102,12 +151,12 @@ export default function HistoryPage() {
         />
       </section>
 
-      {/* Right swarm visualizer — differentiated from home page with list-based layout */}
+      {/* Right swarm visualizer */}
       <aside
         aria-label="Swarm visualizer"
         className="hidden xl:flex xl:w-[35%] bg-surface-container rounded-3xl flex-col overflow-hidden relative border border-border-subtle"
       >
-        <div className="p-6 border-b border-border-subtle">
+        <div className="p-6 border-b border-border-subtle flex-shrink-0">
           <h3 className="font-h1 text-xl font-semibold text-on-surface">
             Swarm Visualizer
           </h3>
@@ -121,30 +170,17 @@ export default function HistoryPage() {
           </div>
         </div>
 
-        <div className="flex-1 relative flex items-center justify-center overflow-hidden">
-          <div className="relative z-10 grid grid-cols-3 gap-12">
-            <div className="flex flex-col items-center gap-2 group">
-              <div className="w-16 h-16 rounded-full border-2 border-primary/40 flex items-center justify-center bg-surface-container-low shadow-[var(--shadow-glow)] animate-pulse">
-                <span className="material-symbols-outlined text-primary" aria-hidden="true">hub</span>
-              </div>
-              <span className="text-[0.6875rem] text-text-muted font-code">AGENT_07</span>
-            </div>
-            <div className="flex flex-col items-center gap-2">
-              <div className="w-16 h-16 rounded-full border-2 border-border-default flex items-center justify-center bg-surface-container-low scale-110">
-                <span className="material-symbols-outlined text-on-surface" aria-hidden="true">memory</span>
-              </div>
-              <span className="text-[0.6875rem] text-text-muted font-code">ORCHESTRATOR</span>
-            </div>
-            <div className="flex flex-col items-center gap-2 group">
-              <div className="w-16 h-16 rounded-full border-2 border-primary/40 flex items-center justify-center bg-surface-container-low shadow-[var(--shadow-glow)]">
-                <span className="material-symbols-outlined text-primary" aria-hidden="true">dns</span>
-              </div>
-              <span className="text-[0.6875rem] text-text-muted font-code">AGENT_12</span>
-            </div>
-          </div>
+        <SwarmGraph
+          agents={MOCK_AGENTS}
+          edges={MOCK_EDGES}
+          onAgentSelect={(id) => {
+            const agent = MOCK_AGENTS.find((a) => a.id === id);
+            if (agent) setShowCard(true);
+          }}
+        />
 
-          {/* Accessible dialog overlay */}
-          {showCard && (
+        {/* Accessible dialog overlay */}
+        {showCard && (
             <div
               ref={dialogRef}
               role="dialog"
@@ -195,7 +231,6 @@ export default function HistoryPage() {
               </div>
             </div>
           )}
-        </div>
       </aside>
     </div>
   );

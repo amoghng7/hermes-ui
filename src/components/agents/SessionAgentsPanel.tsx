@@ -10,12 +10,14 @@
  * that run as a single agent.
  *
  * Clicking an agent card opens AgentDetailDrawer overlaid on this panel.
+ * A "Graph" toggle switches to the SwarmGraph visualiser.
  */
 
 import { useMemo, useState } from "react";
 import { useAgents } from "@/store/hooks";
 import type { Agent } from "@/types/hermes";
 import { AgentDetailDrawer } from "@/components/agents/AgentDetailDrawer";
+import { SwarmGraph } from "@/components/swarm/SwarmGraph";
 
 // ---------------------------------------------------------------------------
 // Status helpers
@@ -236,11 +238,20 @@ export interface SessionAgentsPanelProps {
 export function SessionAgentsPanel({ sessionId }: SessionAgentsPanelProps) {
   const agents = useAgents(sessionId);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
+  const [panelView, setPanelView] = useState<"list" | "graph">("list");
   const selectedAgent = agents.find((a) => a.id === selectedAgentId) ?? null;
 
   const activeCount = agents.filter(
     (a) => a.status === "active" || a.status === "waiting"
   ).length;
+
+  /** Edges derived from parentAgentId relationships */
+  const edges = useMemo(() =>
+    agents
+      .filter((a) => a.parentAgentId)
+      .map((a) => ({ from: a.parentAgentId!, to: a.id })),
+    [agents]
+  );
 
   return (
     <aside
@@ -249,9 +260,35 @@ export function SessionAgentsPanel({ sessionId }: SessionAgentsPanelProps) {
     >
       {/* Panel header */}
       <div className="p-6 border-b border-border-subtle flex-shrink-0">
-        <h3 className="font-h1 text-xl font-semibold text-on-surface">
-          Swarm Agents
-        </h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="font-h1 text-xl font-semibold text-on-surface">
+            Swarm Agents
+          </h3>
+          {/* List / Graph toggle */}
+          <div
+            role="tablist"
+            aria-label="Panel view"
+            className="flex rounded-xl overflow-hidden border border-border-subtle"
+          >
+            {(["list", "graph"] as const).map((v) => (
+              <button
+                key={v}
+                role="tab"
+                aria-selected={panelView === v}
+                type="button"
+                onClick={() => setPanelView(v)}
+                className={[
+                  "px-3 py-1 text-[0.6875rem] font-bold uppercase tracking-wider transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                  panelView === v
+                    ? "bg-primary/10 text-primary"
+                    : "text-text-muted hover:text-on-surface",
+                ].join(" ")}
+              >
+                {v === "list" ? "List" : "Graph"}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="flex gap-2 mt-2 flex-wrap">
           <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[0.6875rem] uppercase font-bold tracking-wider">
             {agents.length === 0 ? "Single Agent" : `${agents.length} Agent${agents.length !== 1 ? "s" : ""}`}
@@ -270,8 +307,14 @@ export function SessionAgentsPanel({ sessionId }: SessionAgentsPanelProps) {
         </div>
       </div>
 
-      {/* Agent list or empty state */}
-      {agents.length > 0 ? (
+      {/* Agent list or graph or empty state */}
+      {panelView === "graph" ? (
+        <SwarmGraph
+          agents={agents}
+          edges={edges}
+          onAgentSelect={(id) => setSelectedAgentId(id)}
+        />
+      ) : agents.length > 0 ? (
         <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
           {agents.map((agent) => (
             <AgentCard
