@@ -33,7 +33,7 @@ const MOCK_AGENTS: Agent[] = [
     id: "agent-12",
     name: "Agent 12",
     status: "done",
-    description: "Efficiency Focus — throughput optimisation",
+    description: "Efficiency Focus — throughput optimization",
     parentAgentId: "orchestrator",
     updatedAt: new Date(Date.now() - 60_000).toISOString(),
     tools: ["optimize", "benchmark"],

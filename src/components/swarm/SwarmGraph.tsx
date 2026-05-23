@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * SwarmGraph — data-driven interactive graph visualiser for swarm agent topology.
+ * SwarmGraph — data-driven interactive graph visualizer for swarm agent topology.
  *
  * Accepts `agents` and `edges` derived from `delegate_task` parent–child
  * relationships and renders them as an interactive SVG graph with two view
@@ -199,12 +199,7 @@ function computeActivityLayout(
       forces.get(edge.to)!.fy -= fy;
     }
 
-    // Centre gravity
-    for (const n of nodeMap.values()) {
-      forces.get(
-        [...nodeMap.entries()].find(([, v]) => v === n)?.[0] ?? "",
-      )!;
-    }
+    // Centre gravity — applied in the main integration loop below
     for (const [id, n] of nodeMap) {
       const f = forces.get(id)!;
       f.fx += CENTER_GRAVITY * (cx - n.x);
@@ -391,7 +386,7 @@ export function SwarmGraph({
   // Pointer drag → pan
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<SVGSVGElement>) => {
-      if (e.target === svgRef.current || (e.target as Element).tagName === "svg") {
+      if (e.target === svgRef.current || (e.target as Element).tagName.toLowerCase() === "svg") {
         isPanning.current = true;
         setIsCursorGrabbing(true);
         lastPointer.current = { x: e.clientX, y: e.clientY };

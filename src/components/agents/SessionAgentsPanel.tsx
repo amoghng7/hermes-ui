@@ -10,7 +10,7 @@
  * that run as a single agent.
  *
  * Clicking an agent card opens AgentDetailDrawer overlaid on this panel.
- * A "Graph" toggle switches to the SwarmGraph visualiser.
+ * A "Graph" toggle switches to the SwarmGraph visualizer.
  */
 
 import { useMemo, useState } from "react";
