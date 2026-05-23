@@ -1,7 +1,8 @@
 "use client";
 
-import { MessageRenderer } from "@/components/chat/MessageRenderer";
 import type { Message, ToolCall } from "@/types/hermes";
+
+import { MessageRenderer } from "@/components/chat/MessageRenderer";
 
 const MOCK_MESSAGES: Message[] = [
   {
@@ -120,6 +121,7 @@ const MOCK_TOOL_CALLS: ToolCall[] = [
 ];
 
 export default function TestRendererPage() {
+  // Original MessageRenderer dev harness
   return (
     <div className="min-h-screen bg-background p-8">
       <h1 className="text-2xl font-bold text-on-surface mb-8">MessageRenderer Test Page</h1>
