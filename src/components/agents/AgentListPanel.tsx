@@ -307,8 +307,8 @@ export function AgentListPanel({
               sessionTitle={
                 sessionMap.get(agent.sessionId)?.title ?? agent.sessionId
               }
-              isSelected={selectedAgentId === agent.id}
-              onClick={() => onSelectAgent(agent.id)}
+              isSelected={selectedAgentId === `${agent.sessionId}/${agent.id}`}
+              onClick={() => onSelectAgent(`${agent.sessionId}/${agent.id}`)}
             />
           ))
         )}

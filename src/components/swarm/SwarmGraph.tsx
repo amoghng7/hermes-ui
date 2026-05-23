@@ -32,6 +32,8 @@ export interface SwarmGraphProps {
   /** Controlled view mode. Defaults to "tree". */
   viewMode?: "tree" | "activity";
   onViewModeChange?: (mode: "tree" | "activity") => void;
+  /** Highlight this agent node as selected. */
+  selectedAgentId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -311,6 +313,7 @@ export function SwarmGraph({
   onAgentSelect,
   viewMode: controlledMode,
   onViewModeChange,
+  selectedAgentId,
 }: SwarmGraphProps) {
   const [internalMode, setInternalMode] = useState<"tree" | "activity">(
     "tree",
@@ -596,6 +599,19 @@ export function SwarmGraph({
                     }
                   }}
                 >
+                  {/* Selection ring */}
+                  {agent.id === selectedAgentId && (
+                    <circle
+                      cx={0}
+                      cy={0}
+                      r={r + 5}
+                      fill="none"
+                      stroke="var(--color-primary)"
+                      strokeWidth={2}
+                      strokeDasharray="4 2"
+                    />
+                  )}
+
                   {/* Pulse ring for active nodes */}
                   {isActive && (
                     <circle

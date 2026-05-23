@@ -57,6 +57,8 @@ function nameToHue(name: string): number {
 function formatRelativeTime(isoString: string): string {
   const now = Date.now();
   const then = new Date(isoString).getTime();
+  if (Number.isNaN(then)) return "unknown";
+  if (then > now) return new Date(isoString).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const diffMs = now - then;
   const diffMin = Math.floor(diffMs / 60_000);
   const diffHr = Math.floor(diffMin / 60);
@@ -85,6 +87,7 @@ function useCopyToClipboard(text: string) {
   }, []);
 
   const copy = useCallback(() => {
+    if (!navigator.clipboard) return;
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       if (timerRef.current !== null) clearTimeout(timerRef.current);
@@ -208,13 +211,14 @@ function TokenUsageBar({ input, output }: TokenUsageBarProps) {
       </p>
       {/* Bar */}
       <div
-        className="h-2 rounded-full overflow-hidden bg-surface-container-high mb-3"
+        className="h-2 rounded-full overflow-hidden bg-surface-container-high mb-3 flex"
         role="presentation"
       >
         <div
           className="h-full rounded-l-full bg-primary/70"
           style={{ width: `${inputPct}%` }}
         />
+        <div className="h-full bg-secondary/50" style={{ width: `${outputPct}%` }} />
       </div>
       {/* Legend */}
       <div className="flex items-center gap-4">
@@ -470,9 +474,9 @@ export function AgentDetailPanel({
 
           {/* Tool list */}
           {agent.tools && agent.tools.length > 0 && (
-            <section aria-label="Agent tools">
+            <section aria-label="Session tool activity">
               <p className="text-[0.625rem] uppercase tracking-wider text-text-muted font-bold mb-3">
-                Tools ({agent.tools.length})
+                Session tool activity ({agent.tools.length})
               </p>
               <div className="flex flex-col gap-2">
                 {agent.tools.map((toolName) => {

@@ -148,6 +148,11 @@ export function SwarmMinimapPanel({
           agents={agents}
           edges={edges}
           onAgentSelect={onSelectAgent}
+          selectedAgentId={
+            selectedAgentId && sessionId && selectedAgentId.startsWith(`${sessionId}/`)
+              ? selectedAgentId.split("/")[1]
+              : undefined
+          }
         />
       )}
     </aside>

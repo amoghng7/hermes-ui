@@ -52,7 +52,7 @@ export function AgentsPageContent() {
   const selectedAgent = useMemo(
     () =>
       selectedAgentId !== null
-        ? (agentsWithSession.find((a) => a.id === selectedAgentId) ?? null)
+        ? (agentsWithSession.find((a) => `${a.sessionId}/${a.id}` === selectedAgentId) ?? null)
         : null,
     [agentsWithSession, selectedAgentId],
   );
@@ -96,7 +96,10 @@ export function AgentsPageContent() {
   };
 
   const handleMinimapSelect = (agentId: string) => {
-    setSelectedAgentId(agentId);
+    if (minimapSessionId) {
+      const compositeKey = `${minimapSessionId}/${agentId}`;
+      setSelectedAgentId((prev) => (prev === compositeKey ? null : compositeKey));
+    }
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
