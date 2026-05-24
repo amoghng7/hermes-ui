@@ -770,7 +770,7 @@ export function MemoryPageContent() {
                               className="border-b border-border-subtle last:border-0 hover:bg-hover-subtle transition-colors"
                             >
                               <td className="px-4 py-3 text-on-surface-variant max-w-xs">
-                                <p className="truncate">{entry.content.slice(0, CONTENT_PREVIEW_LENGTH)}</p>
+                                <p className="truncate">{entry.content.slice(0, CONTENT_PREVIEW_LENGTH)}{entry.content.length > CONTENT_PREVIEW_LENGTH ? "…" : ""}</p>
                               </td>
                               <td className="px-4 py-3 text-text-muted whitespace-nowrap hidden sm:table-cell">
                                 {formatTimestamp(entry.updatedAt)}
