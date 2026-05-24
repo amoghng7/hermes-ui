@@ -144,9 +144,20 @@ export interface Skill {
   name: string;
   /** Short description of what the skill does. */
   description: string;
-  /** Whether the skill is currently enabled. */
+  /** Whether the skill is currently enabled for the active profile. */
   enabled: boolean;
+  /** Semantic version string, e.g. "1.2.0". */
+  version?: string;
+  /** Broad category labels, e.g. ["search", "web"]. */
+  categories?: string[];
+  /** Fine-grained tags for filtering. */
+  tags?: string[];
+  /** Full skill prompt / instructions rendered in the expand panel. */
+  instructions?: string;
 }
+
+/** Transport mechanism for an MCP server. */
+export type McpTransport = "stdio" | "http";
 
 /** A Model Context Protocol server registered with the gateway. */
 export interface McpServer {
@@ -154,10 +165,35 @@ export interface McpServer {
   id: string;
   /** Human-readable server name. */
   name: string;
-  /** Transport URL for the MCP server. */
+  /** Transport URL for HTTP servers or empty string for stdio servers. */
   url: string;
   /** Whether the server is currently reachable. */
   connected: boolean;
+  /** Transport type: stdio subprocess or HTTP endpoint. */
+  transport?: McpTransport;
+  /** CLI command used to launch stdio servers. */
+  command?: string;
+  /** List of tool names exposed by this server. */
+  tools?: string[];
+  /** Explicit ping status reported by the gateway. */
+  pingStatus?: "online" | "offline" | "unknown";
+  /** Last error message from the server, if any. */
+  lastError?: string;
+  /** Whether this server is administratively enabled. */
+  enabled?: boolean;
+  /** Environment variables passed to the server process (key→value). */
+  env?: Record<string, string>;
+}
+
+/** Payload for adding a new MCP server. */
+export interface AddMcpServerPayload {
+  name: string;
+  transport: McpTransport;
+  /** Required when transport is "http". */
+  url?: string;
+  /** Required when transport is "stdio". */
+  command?: string;
+  env?: Record<string, string>;
 }
 
 // ---------------------------------------------------------------------------
