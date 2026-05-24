@@ -596,7 +596,7 @@ export async function toggleSkill(
   const baseUrl = opts.baseUrl ?? resolveBaseUrl();
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
 
-  const response = await fetchImpl(`${baseUrl}/v1/skills/${id}`, {
+  const response = await fetchImpl(`${baseUrl}/v1/skills/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...resolveAuthHeader() },
     body: JSON.stringify({ enabled }),
@@ -620,7 +620,7 @@ export async function deleteSkill(
   const baseUrl = opts.baseUrl ?? resolveBaseUrl();
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
 
-  const response = await fetchImpl(`${baseUrl}/v1/skills/${id}`, {
+  const response = await fetchImpl(`${baseUrl}/v1/skills/${encodeURIComponent(id)}`, {
     method: "DELETE",
     headers: { ...resolveAuthHeader() },
   });
@@ -668,7 +668,7 @@ export async function toggleMcpServer(
   const baseUrl = opts.baseUrl ?? resolveBaseUrl();
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
 
-  const response = await fetchImpl(`${baseUrl}/v1/mcp/servers/${id}`, {
+  const response = await fetchImpl(`${baseUrl}/v1/mcp/servers/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...resolveAuthHeader() },
     body: JSON.stringify({ enabled }),

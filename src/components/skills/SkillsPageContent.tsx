@@ -155,10 +155,12 @@ function Toggle({
   checked,
   onChange,
   label,
+  disabled = false,
 }: {
   checked: boolean;
   onChange: (v: boolean) => void;
   label: string;
+  disabled?: boolean;
 }) {
   return (
     <button
@@ -166,9 +168,11 @@ function Toggle({
       role="switch"
       aria-checked={checked}
       aria-label={label}
+      disabled={disabled}
       onClick={() => onChange(!checked)}
       className={[
-        "relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "relative inline-flex h-5 w-9 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
         checked ? "bg-primary" : "bg-surface-container-high",
       ].join(" ")}
     >
@@ -278,6 +282,7 @@ function SkillCard({ skill, onToggle, onRemove, onLoadToSession, hasActiveSessio
             checked={skill.enabled}
             onChange={handleToggle}
             label={`${skill.enabled ? "Disable" : "Enable"} ${skill.name}`}
+            disabled={toggling}
           />
           {toggling && (
             <span className="text-[0.625rem] text-text-muted">saving…</span>
@@ -553,6 +558,7 @@ function McpServerCard({ server, onToggle }: McpServerCardProps) {
             checked={isEnabled}
             onChange={handleToggle}
             label={`${isEnabled ? "Disable" : "Enable"} ${server.name}`}
+            disabled={toggling}
           />
           {toggling && (
             <span className="text-[0.625rem] text-text-muted">saving…</span>
@@ -781,11 +787,9 @@ function McpTab({
 function MarketplaceSkillCard({
   skill,
   onInstall,
-  installing,
 }: {
   skill: MarketplaceSkill;
   onInstall: (id: string) => void;
-  installing: boolean;
 }) {
   return (
     <div className="rounded-2xl border border-border-default bg-surface-container hover:border-primary/30 transition-colors">
@@ -832,13 +836,14 @@ function MarketplaceSkillCard({
           <button
             type="button"
             onClick={() => onInstall(skill.id)}
-            disabled={installing}
-            className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-[0.75rem] font-medium bg-primary/10 text-primary border border-primary/20 hover:bg-primary/20 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            disabled
+            title="Install endpoint coming soon"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-lg text-[0.75rem] font-medium bg-surface-container-high text-text-muted border border-border-default cursor-not-allowed opacity-60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <span className="material-symbols-outlined text-[0.875rem]" aria-hidden="true">
-              {installing ? "refresh" : "download"}
+              download
             </span>
-            {installing ? "Installing…" : "Install"}
+            Install
           </button>
         )}
       </div>
@@ -846,13 +851,11 @@ function MarketplaceSkillCard({
   );
 }
 
-function MarketplaceTab({ onInstalled }: { onInstalled: () => void }) {
+function MarketplaceTab({ onInstalled: _onInstalled }: { onInstalled: () => void }) {
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [catalog, setCatalog] = useState<MarketplaceSkill[]>(MARKETPLACE_CATALOG);
-  const [installingId, setInstallingId] = useState<string | null>(null);
 
-  const filtered = catalog.filter((s) => {
+  const filtered = MARKETPLACE_CATALOG.filter((s) => {
     const matchesSearch =
       !search ||
       s.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -863,15 +866,9 @@ function MarketplaceTab({ onInstalled }: { onInstalled: () => void }) {
     return matchesSearch && matchesCategory;
   });
 
-  const handleInstall = (id: string) => {
-    setInstallingId(id);
-    // Optimistic update — marks the skill as installed in local catalog state.
-    // A real install API call would go here once the backend endpoint is available.
-    setCatalog((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, installed: true } : s))
-    );
-    onInstalled();
-    setInstallingId(null);
+  const handleInstall = (_id: string) => {
+    // TODO: Wire up to the skill install endpoint once the backend registry
+    // integration is available. For now the button is disabled.
   };
 
   return (
@@ -887,6 +884,7 @@ function MarketplaceTab({ onInstalled }: { onInstalled: () => void }) {
           </span>
           <input
             type="search"
+            aria-label="Search skills"
             placeholder="Search skills…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -940,7 +938,6 @@ function MarketplaceTab({ onInstalled }: { onInstalled: () => void }) {
               key={s.id}
               skill={s}
               onInstall={handleInstall}
-              installing={installingId === s.id}
             />
           ))}
         </div>
@@ -1031,20 +1028,27 @@ export function SkillsPageContent() {
   // ── Skill actions ─────────────────────────────────────────────────────────
 
   const handleToggleSkill = useCallback(async (id: string, enabled: boolean) => {
-    // Optimistic update
-    setSkills((prev) => prev.map((s) => s.id === id ? { ...s, enabled } : s));
+    // Optimistic update — mirror into global store so other components stay in sync
+    const optimistic = (prev: Skill[]) => prev.map((s) => s.id === id ? { ...s, enabled } : s);
+    setSkills(optimistic);
+    useHermesStore.setState((state) => ({ skills: optimistic(state.skills) }));
     try {
       const updated = await toggleSkill(id, enabled);
       setSkills((prev) => prev.map((s) => s.id === id ? updated : s));
+      useHermesStore.setState((state) => ({ skills: state.skills.map((s) => s.id === id ? updated : s) }));
     } catch {
       // Revert on failure
-      setSkills((prev) => prev.map((s) => s.id === id ? { ...s, enabled: !enabled } : s));
+      const revert = (prev: Skill[]) => prev.map((s) => s.id === id ? { ...s, enabled: !enabled } : s);
+      setSkills(revert);
+      useHermesStore.setState((state) => ({ skills: revert(state.skills) }));
     }
   }, []);
 
   const handleRemoveSkill = useCallback(async (id: string) => {
-    // Optimistic removal
-    setSkills((prev) => prev.filter((s) => s.id !== id));
+    // Optimistic removal — mirror into global store
+    const withoutSkill = (prev: Skill[]) => prev.filter((s) => s.id !== id);
+    setSkills(withoutSkill);
+    useHermesStore.setState((state) => ({ skills: withoutSkill(state.skills) }));
     try {
       await deleteSkill(id);
     } catch {
@@ -1053,32 +1057,33 @@ export function SkillsPageContent() {
     }
   }, []);
 
-  const handleLoadToSession = useCallback(() => {
-    // Navigate to the chat view where the skill will be active in the
-    // current session context. A dedicated API call to inject the skill
-    // into the running session context can be added once the endpoint is
-    // available; for now we route to the Interaction page.
+  const handleLoadToSession = useCallback((_id: string) => {
+    // TODO: Call the session-context inject endpoint once available so the
+    // selected skill (identified by `_id`) is activated in the running session.
+    // For now we navigate to the Interaction page where the active session lives.
     router.push("/");
   }, [router]);
 
   // ── MCP actions ───────────────────────────────────────────────────────────
 
   const handleToggleMcp = useCallback(async (id: string, enabled: boolean) => {
-    setMcpServers((prev) =>
-      prev.map((s) => s.id === id ? { ...s, enabled } : s)
-    );
+    const optimistic = (prev: McpServer[]) => prev.map((s) => s.id === id ? { ...s, enabled } : s);
+    setMcpServers(optimistic);
+    useHermesStore.setState((state) => ({ mcpServers: optimistic(state.mcpServers) }));
     try {
       const updated = await toggleMcpServer(id, enabled);
       setMcpServers((prev) => prev.map((s) => s.id === id ? updated : s));
+      useHermesStore.setState((state) => ({ mcpServers: state.mcpServers.map((s) => s.id === id ? updated : s) }));
     } catch {
-      setMcpServers((prev) =>
-        prev.map((s) => s.id === id ? { ...s, enabled: !enabled } : s)
-      );
+      const revert = (prev: McpServer[]) => prev.map((s) => s.id === id ? { ...s, enabled: !enabled } : s);
+      setMcpServers(revert);
+      useHermesStore.setState((state) => ({ mcpServers: revert(state.mcpServers) }));
     }
   }, []);
 
   const handleAddMcpServer = useCallback((server: McpServer) => {
     setMcpServers((prev) => [...prev, server]);
+    useHermesStore.setState((state) => ({ mcpServers: [...state.mcpServers, server] }));
   }, []);
 
   // ── Tab config ────────────────────────────────────────────────────────────
