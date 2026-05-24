@@ -1053,12 +1053,11 @@ export function SkillsPageContent() {
     }
   }, []);
 
-  const handleLoadToSession = useCallback((id: string) => {
+  const handleLoadToSession = useCallback(() => {
     // Navigate to the chat view where the skill will be active in the
     // current session context. A dedicated API call to inject the skill
     // into the running session context can be added once the endpoint is
     // available; for now we route to the Interaction page.
-    void id;
     router.push("/");
   }, [router]);
 
