@@ -13,6 +13,7 @@
  */
 
 import type {
+  AddMcpServerPayload,
   ChatDelta,
   HermesApiError,
   MemoryEntry,
@@ -576,6 +577,104 @@ export async function listMcpServers(
   });
   await assertOk(response);
   return response.json() as Promise<McpServer[]>;
+}
+
+/**
+ * Enable or disable a skill for the active profile.
+ *
+ * @param id - The skill ID to toggle.
+ * @param enabled - `true` to enable, `false` to disable.
+ * @param opts - {@link ClientOptions}
+ * @returns The updated {@link Skill}.
+ * @throws {HermesApiError} On non-2xx responses.
+ */
+export async function toggleSkill(
+  id: string,
+  enabled: boolean,
+  opts: ClientOptions = {}
+): Promise<Skill> {
+  const baseUrl = opts.baseUrl ?? resolveBaseUrl();
+  const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
+
+  const response = await fetchImpl(`${baseUrl}/v1/skills/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...resolveAuthHeader() },
+    body: JSON.stringify({ enabled }),
+  });
+  await assertOk(response);
+  return response.json() as Promise<Skill>;
+}
+
+/**
+ * Remove a skill from the gateway.
+ *
+ * @param id - The skill ID to delete.
+ * @param opts - {@link ClientOptions}
+ * @returns Resolves to `undefined` on success.
+ * @throws {HermesApiError} On non-2xx responses.
+ */
+export async function deleteSkill(
+  id: string,
+  opts: ClientOptions = {}
+): Promise<void> {
+  const baseUrl = opts.baseUrl ?? resolveBaseUrl();
+  const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
+
+  const response = await fetchImpl(`${baseUrl}/v1/skills/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: { ...resolveAuthHeader() },
+  });
+  await assertOk(response);
+}
+
+/**
+ * Register a new MCP server with the gateway.
+ *
+ * @param payload - {@link AddMcpServerPayload} describing the server.
+ * @param opts - {@link ClientOptions}
+ * @returns The created {@link McpServer}.
+ * @throws {HermesApiError} On non-2xx responses.
+ */
+export async function addMcpServer(
+  payload: AddMcpServerPayload,
+  opts: ClientOptions = {}
+): Promise<McpServer> {
+  const baseUrl = opts.baseUrl ?? resolveBaseUrl();
+  const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
+
+  const response = await fetchImpl(`${baseUrl}/v1/mcp/servers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...resolveAuthHeader() },
+    body: JSON.stringify(payload),
+  });
+  await assertOk(response);
+  return response.json() as Promise<McpServer>;
+}
+
+/**
+ * Enable or disable an MCP server.
+ *
+ * @param id - The MCP server ID to toggle.
+ * @param enabled - `true` to enable, `false` to disable.
+ * @param opts - {@link ClientOptions}
+ * @returns The updated {@link McpServer}.
+ * @throws {HermesApiError} On non-2xx responses.
+ */
+export async function toggleMcpServer(
+  id: string,
+  enabled: boolean,
+  opts: ClientOptions = {}
+): Promise<McpServer> {
+  const baseUrl = opts.baseUrl ?? resolveBaseUrl();
+  const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
+
+  const response = await fetchImpl(`${baseUrl}/v1/mcp/servers/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...resolveAuthHeader() },
+    body: JSON.stringify({ enabled }),
+  });
+  await assertOk(response);
+  return response.json() as Promise<McpServer>;
 }
 
 // ---------------------------------------------------------------------------
