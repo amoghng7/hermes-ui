@@ -866,7 +866,7 @@ function MarketplaceTab({ onInstalled: _onInstalled }: { onInstalled: () => void
     return matchesSearch && matchesCategory;
   });
 
-  const handleInstall = (_id: string) => {
+  const handleInstall = (_skillId: string) => {
     // TODO: Wire up to the skill install endpoint once the backend registry
     // integration is available. For now the button is disabled.
   };
@@ -1057,10 +1057,11 @@ export function SkillsPageContent() {
     }
   }, []);
 
-  const handleLoadToSession = useCallback((_id: string) => {
+  const handleLoadToSession = useCallback((id: string) => {
     // TODO: Call the session-context inject endpoint once available so the
-    // selected skill (identified by `_id`) is activated in the running session.
+    // selected skill (identified by `id`) is activated in the running session.
     // For now we navigate to the Interaction page where the active session lives.
+    void id;
     router.push("/");
   }, [router]);
 
