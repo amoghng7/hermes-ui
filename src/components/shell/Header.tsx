@@ -9,6 +9,7 @@ const links = [
   { href: "/agents", label: "Agents" },
   { href: "/skills", label: "Skills" },
   { href: "/tuning", label: "Tuning" },
+  { href: "/memory", label: "Memory" },
 ] as const;
 
 export const Header: React.FC = () => {
