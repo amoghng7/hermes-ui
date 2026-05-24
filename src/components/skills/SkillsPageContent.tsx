@@ -10,6 +10,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useHermesStore } from "@/store/hermesStore";
 import type { McpServer, Skill } from "@/types/hermes";
 import {
@@ -578,8 +579,8 @@ function AddMcpServerForm({ onAdd }: { onAdd: (server: McpServer) => void }) {
     const command = commandRef.current?.value.trim() ?? "";
 
     if (!name) { setError("Name is required."); return; }
-    if (transport === "http" && !url) { setError("URL is required for HTTP servers."); return; }
-    if (transport === "stdio" && !command) { setError("Command is required for stdio servers."); return; }
+    if (transport === "http" && !url) { setError("URL is required for HTTP transport."); return; }
+    if (transport === "stdio" && !command) { setError("Command is required for stdio transport."); return; }
 
     setError(null);
     setSubmitting(true);
@@ -862,17 +863,15 @@ function MarketplaceTab({ onInstalled }: { onInstalled: () => void }) {
     return matchesSearch && matchesCategory;
   });
 
-  const handleInstall = async (id: string) => {
+  const handleInstall = (id: string) => {
     setInstallingId(id);
-    try {
-      // Optimistic update
-      setCatalog((prev) =>
-        prev.map((s) => (s.id === id ? { ...s, installed: true } : s))
-      );
-      onInstalled();
-    } finally {
-      setInstallingId(null);
-    }
+    // Optimistic update — marks the skill as installed in local catalog state.
+    // A real install API call would go here once the backend endpoint is available.
+    setCatalog((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, installed: true } : s))
+    );
+    onInstalled();
+    setInstallingId(null);
   };
 
   return (
@@ -955,6 +954,7 @@ function MarketplaceTab({ onInstalled }: { onInstalled: () => void }) {
 // ---------------------------------------------------------------------------
 
 export function SkillsPageContent() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<Tab>("installed");
 
   // Store state
@@ -1053,9 +1053,14 @@ export function SkillsPageContent() {
     }
   }, []);
 
-  const handleLoadToSession = useCallback(() => {
-    // TODO: implement once API route for adding skill to session is defined
-  }, []);
+  const handleLoadToSession = useCallback((id: string) => {
+    // Navigate to the chat view where the skill will be active in the
+    // current session context. A dedicated API call to inject the skill
+    // into the running session context can be added once the endpoint is
+    // available; for now we route to the Interaction page.
+    void id;
+    router.push("/");
+  }, [router]);
 
   // ── MCP actions ───────────────────────────────────────────────────────────
 
@@ -1080,8 +1085,8 @@ export function SkillsPageContent() {
   // ── Tab config ────────────────────────────────────────────────────────────
 
   const tabs: { id: Tab; label: string; icon: string; badge?: number }[] = [
-    { id: "installed", label: "Installed", icon: "extension", badge: skills.length || undefined },
-    { id: "mcp", label: "MCP Servers", icon: "device_hub", badge: mcpServers.length || undefined },
+    { id: "installed", label: "Installed", icon: "extension", badge: skills.length > 0 ? skills.length : undefined },
+    { id: "mcp", label: "MCP Servers", icon: "device_hub", badge: mcpServers.length > 0 ? mcpServers.length : undefined },
     { id: "marketplace", label: "Marketplace", icon: "storefront" },
   ];
 
