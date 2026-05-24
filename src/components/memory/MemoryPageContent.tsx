@@ -63,6 +63,11 @@ function formatBytes(n: number): string {
   return `${(n / 1024).toFixed(1)} KB`;
 }
 
+function getEntryKey(entry: MemoryEntry, scopeId: ScopeId): string {
+  // Use composite key in global scope to avoid collisions across profiles
+  return scopeId === "global" ? `${entry.id}:${entry.updatedAt}` : entry.id;
+}
+
 function latestUpdated(entries: MemoryEntry[]): string | null {
   if (entries.length === 0) return null;
   return entries.reduce((best, e) =>
@@ -193,8 +198,8 @@ function SaveWarningDialog({
               Save Memory Changes
             </h2>
             <p className="text-sm text-on-surface-variant mt-1">
-              Edits are written directly to Hermes memory files and will
-              take effect immediately. This action cannot be undone.
+              Edits are written directly to Hermes memory files. Changes
+              auto-save after 3 seconds of inactivity. This action cannot be undone.
             </p>
           </div>
         </div>
@@ -217,6 +222,19 @@ function SaveWarningDialog({
       </div>
     </div>
   );
+}
+
+function EscapeHandler({ onEscape }: { onEscape: () => void }) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onEscape();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onEscape]);
+  return null;
 }
 
 function DiscardChangesDialog({
@@ -317,6 +335,9 @@ export function MemoryPageContent() {
 
   // Debounce timer for auto-save
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Monotonic counter to discard stale save completions
+  const saveSeqRef = useRef(0);
+  // Monotonic counter to discard stale save completions
 
   // ---------------------------------------------------------------------------
   // Data loading — async functions defined INSIDE the effect body so that
@@ -481,22 +502,34 @@ export function MemoryPageContent() {
   const performSave = useCallback(
     async (content: string, silent = false) => {
       if (activeScopeId === "global") return;
+
+      const seq = ++saveSeqRef.current;
+
       setSaving(true);
       setSaveError(null);
+
       try {
         await updateMemory(activeScopeId, content);
+
+        // Only apply state updates if this is still the latest save
+        if (seq !== saveSeqRef.current) return;
+
         setSavedText(content);
         setDirty(false);
         if (!silent) setSaveSuccess(true);
         refetchRef.current();
       } catch (err) {
+        if (seq !== saveSeqRef.current) return;
+
         setSaveError(
           err instanceof Error
             ? `Save failed: ${err.message}`
             : "Save failed — Hermes may be unavailable. Please try again."
         );
       } finally {
-        setSaving(false);
+        if (seq === saveSeqRef.current) {
+          setSaving(false);
+        }
       }
     },
     [activeScopeId]
@@ -559,6 +592,11 @@ export function MemoryPageContent() {
           onCancel={() => setShowWarning(false)}
         />
       )}
+
+      {/* Escape key handler for warning dialog */}
+      {showWarning && (
+        <EscapeHandler onEscape={() => setShowWarning(false)} />
+      )}
       {pendingScopeId !== null && (
         <DiscardChangesDialog
           onConfirm={() => {
@@ -568,6 +606,11 @@ export function MemoryPageContent() {
           }}
           onCancel={() => setPendingScopeId(null)}
         />
+      )}
+
+      {/* Escape key handler for discard dialog */}
+      {pendingScopeId !== null && (
+        <EscapeHandler onEscape={() => setPendingScopeId(null)} />
       )}
 
       <main className="flex flex-col md:pl-28 pt-20 pb-20 md:pb-6 min-h-screen">
@@ -590,6 +633,7 @@ export function MemoryPageContent() {
             </span>
             <input
               type="search"
+              aria-label="Search memory"
               placeholder="Search memory…"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
@@ -766,7 +810,7 @@ export function MemoryPageContent() {
                         <tbody>
                           {filteredEntries.map((entry) => (
                             <tr
-                              key={entry.id}
+                              key={getEntryKey(entry, activeScopeId)}
                               className="border-b border-border-subtle last:border-0 hover:bg-hover-subtle transition-colors"
                             >
                               <td className="px-4 py-3 text-on-surface-variant max-w-xs">
@@ -787,7 +831,7 @@ export function MemoryPageContent() {
                     {/* Detailed rendered markdown cards */}
                     <div className="flex flex-col gap-3 mt-2">
                       {filteredEntries.map((entry) => (
-                        <MemoryCard key={entry.id} entry={entry} />
+                        <MemoryCard key={getEntryKey(entry, activeScopeId)} entry={entry} />
                       ))}
                     </div>
                   </div>
