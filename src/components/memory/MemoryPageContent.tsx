@@ -22,6 +22,13 @@ import { getMemory, updateMemory } from "@/lib/hermesClient";
 import type { MemoryEntry, Profile } from "@/types/hermes";
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const AUTO_SAVE_DELAY_MS = 3000;
+const CONTENT_PREVIEW_LENGTH = 120;
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -212,6 +219,55 @@ function SaveWarningDialog({
   );
 }
 
+function DiscardChangesDialog({
+  onConfirm,
+  onCancel,
+}: {
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="discard-changes-title"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+    >
+      <div className="bg-surface-container-low border border-border-default rounded-2xl shadow-2xl max-w-sm w-full p-6 flex flex-col gap-4">
+        <div className="flex items-start gap-3">
+          <span className="material-symbols-outlined text-[28px] text-status-error shrink-0" aria-hidden="true">
+            undo
+          </span>
+          <div>
+            <h2 id="discard-changes-title" className="font-semibold text-on-surface text-base">
+              Discard Unsaved Changes?
+            </h2>
+            <p className="text-sm text-on-surface-variant mt-1">
+              You have unsaved changes. Switching scopes will discard them.
+            </p>
+          </div>
+        </div>
+        <div className="flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="px-4 py-2 rounded-xl text-sm text-on-surface-variant hover:bg-hover-subtle transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            Keep editing
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="px-4 py-2 rounded-xl text-sm font-semibold bg-status-error text-white hover:bg-status-error/90 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error"
+          >
+            Discard
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Main page component
 // ---------------------------------------------------------------------------
@@ -257,6 +313,7 @@ export function MemoryPageContent() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [showWarning, setShowWarning] = useState(false);
+  const [pendingScopeId, setPendingScopeId] = useState<ScopeId | null>(null);
 
   // Debounce timer for auto-save
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -317,8 +374,7 @@ export function MemoryPageContent() {
     doLoad();
 
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeScopeId]);
+  }, [activeScopeId, profiles]);
 
   // ---------------------------------------------------------------------------
   // Derived state — useMemo avoids a setState-in-effect for store sync.
@@ -357,8 +413,8 @@ export function MemoryPageContent() {
   // Scope selection
   // ---------------------------------------------------------------------------
 
-  const handleScopeSelect = (id: ScopeId) => {
-    if (dirty && !confirm("You have unsaved changes. Discard them?")) return;
+  // Applies a confirmed scope switch (called after the DiscardChangesDialog confirms)
+  const applySwitch = useCallback((id: ScopeId) => {
     if (autoSaveTimer.current) {
       clearTimeout(autoSaveTimer.current);
       autoSaveTimer.current = null;
@@ -368,6 +424,14 @@ export function MemoryPageContent() {
     setDirty(false);
     setSaveError(null);
     setSaveSuccess(false);
+  }, []);
+
+  const handleScopeSelect = (id: ScopeId) => {
+    if (dirty) {
+      setPendingScopeId(id);
+      return;
+    }
+    applySwitch(id);
   };
 
   // ---------------------------------------------------------------------------
@@ -424,7 +488,7 @@ export function MemoryPageContent() {
       if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
       autoSaveTimer.current = setTimeout(() => {
         void performSave(value, /* silent */ true);
-      }, 3000);
+      }, AUTO_SAVE_DELAY_MS);
     }
   };
 
@@ -470,6 +534,16 @@ export function MemoryPageContent() {
         <SaveWarningDialog
           onConfirm={handleWarningConfirm}
           onCancel={() => setShowWarning(false)}
+        />
+      )}
+      {pendingScopeId !== null && (
+        <DiscardChangesDialog
+          onConfirm={() => {
+            const id = pendingScopeId;
+            setPendingScopeId(null);
+            applySwitch(id);
+          }}
+          onCancel={() => setPendingScopeId(null)}
         />
       )}
 
@@ -673,7 +747,7 @@ export function MemoryPageContent() {
                               className="border-b border-border-subtle last:border-0 hover:bg-hover-subtle transition-colors"
                             >
                               <td className="px-4 py-3 text-on-surface-variant max-w-xs">
-                                <p className="truncate">{entry.content.slice(0, 120)}</p>
+                                <p className="truncate">{entry.content.slice(0, CONTENT_PREVIEW_LENGTH)}</p>
                               </td>
                               <td className="px-4 py-3 text-text-muted whitespace-nowrap hidden sm:table-cell">
                                 {formatTimestamp(entry.updatedAt)}
