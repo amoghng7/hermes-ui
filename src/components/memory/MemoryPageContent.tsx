@@ -344,13 +344,26 @@ export function MemoryPageContent() {
           );
           if (!cancelled) {
             const combined: MemoryEntry[] = [];
+            let failedCount = 0;
             results.forEach((r) => {
               if (r.status === "fulfilled") combined.push(...r.value);
+              else failedCount++;
             });
             setEntriesByScope((prev) => ({ ...prev, global: combined }));
+            if (failedCount > 0) {
+              setLoadError(
+                `Could not load memory for ${failedCount} profile${failedCount > 1 ? "s" : ""} — Hermes may be unavailable.`
+              );
+            }
           }
-        } catch {
-          if (!cancelled) setLoadError("Failed to load global memory.");
+        } catch (err) {
+          if (!cancelled) {
+            setLoadError(
+              err instanceof Error
+                ? `Failed to load global memory: ${err.message}`
+                : "Failed to load global memory — Hermes may be unavailable."
+            );
+          }
         } finally {
           if (!cancelled) setLoading(false);
         }
@@ -363,8 +376,14 @@ export function MemoryPageContent() {
         if (!cancelled) {
           setEntriesByScope((prev) => ({ ...prev, [activeScopeId]: entries }));
         }
-      } catch {
-        if (!cancelled) setLoadError("Failed to load memory for this profile.");
+      } catch (err) {
+        if (!cancelled) {
+          setLoadError(
+            err instanceof Error
+              ? `Failed to load memory: ${err.message}`
+              : "Failed to load memory — Hermes may be unavailable."
+          );
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -470,8 +489,12 @@ export function MemoryPageContent() {
         setDirty(false);
         if (!silent) setSaveSuccess(true);
         refetchRef.current();
-      } catch {
-        setSaveError("Save failed. Please try again.");
+      } catch (err) {
+        setSaveError(
+          err instanceof Error
+            ? `Save failed: ${err.message}`
+            : "Save failed — Hermes may be unavailable. Please try again."
+        );
       } finally {
         setSaving(false);
       }
@@ -695,7 +718,7 @@ export function MemoryPageContent() {
               <div className="flex flex-col gap-2 flex-1">
                 <p className="text-xs text-text-muted flex items-center gap-1">
                   <span className="material-symbols-outlined text-[14px] text-tertiary" aria-hidden="true">warning</span>
-                  Edits are written directly to Hermes memory files. Auto-saves after 3 s of inactivity.
+                  Edits are written directly to Hermes memory files. Auto-saves after {AUTO_SAVE_DELAY_MS / 1000} s of inactivity.
                 </p>
                 <textarea
                   aria-label="Memory content editor"
