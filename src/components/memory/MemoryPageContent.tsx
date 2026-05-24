@@ -64,7 +64,8 @@ function formatBytes(n: number): string {
 }
 
 function getEntryKey(entry: MemoryEntry, scopeId: ScopeId): string {
-  // Use composite key in global scope to avoid collisions across profiles
+  // Composite key for global scope. Uses id+updatedAt as a practical discriminator.
+  // A stronger solution would attach profileId to MemoryEntry during global aggregation.
   return scopeId === "global" ? `${entry.id}:${entry.updatedAt}` : entry.id;
 }
 
@@ -337,7 +338,6 @@ export function MemoryPageContent() {
   const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Monotonic counter to discard stale save completions
   const saveSeqRef = useRef(0);
-  // Monotonic counter to discard stale save completions
 
   // ---------------------------------------------------------------------------
   // Data loading — async functions defined INSIDE the effect body so that
