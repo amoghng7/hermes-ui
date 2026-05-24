@@ -8,6 +8,7 @@ const navItems = [
   { href: "/agents", icon: "hub", label: "Agents" },
   { href: "/skills", icon: "extension", label: "Skills" },
   { href: "/tuning", icon: "tune", label: "Tuning" },
+  { href: "/memory", icon: "bookmark", label: "Memory" },
 ];
 
 export const SidebarNav: React.FC = () => {
