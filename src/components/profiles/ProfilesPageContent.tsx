@@ -176,7 +176,7 @@ export function ProfilesPageContent() {
   async function saveSettings(profileId: string): Promise<void> {
     const current = settingsByProfile[profileId];
     if (!current || settingsStatusByProfile[profileId] !== "loaded") {
-      setError("Profile settings are not loaded yet. Please collapse and re-expand this profile to retry.");
+      setError("Profile settings are not loaded yet. Use Retry to load settings before saving.");
       return;
     }
     setSavingSettingsId(profileId);
