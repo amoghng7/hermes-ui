@@ -19,6 +19,7 @@ export const Header: React.FC = () => {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [switchingProfileId, setSwitchingProfileId] = useState<string | null>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const profiles = useProfiles();
   const activeProfile = useActiveProfile();
@@ -42,6 +43,17 @@ export const Header: React.FC = () => {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
+
+  const handleProfileSwitch = async (profileId: string): Promise<void> => {
+    if (switchingProfileId === profileId) return;
+    setSwitchingProfileId(profileId);
+    try {
+      await setActiveProfile(profileId);
+      setProfileMenuOpen(false);
+    } finally {
+      setSwitchingProfileId(null);
+    }
+  };
 
   return (
     <header className="fixed top-0 w-full z-50 bg-surface-container-lowest/95 border-b border-border-default shadow-[var(--shadow-header)] flex justify-between items-center px-8 py-4">
@@ -101,13 +113,12 @@ export const Header: React.FC = () => {
                     <button
                       key={profile.id}
                       type="button"
-                      onClick={() => {
-                        setProfileMenuOpen(false);
-                        void setActiveProfile(profile.id);
-                      }}
+                      onClick={() => void handleProfileSwitch(profile.id)}
+                      disabled={switchingProfileId === profile.id}
                       className={[
                         "w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm transition-colors",
                         active ? "bg-primary/10 text-primary" : "text-on-surface hover:bg-hover-subtle",
+                        switchingProfileId === profile.id ? "opacity-60 cursor-not-allowed" : "",
                       ].join(" ")}
                     >
                       <span className="truncate">{profile.name}</span>
