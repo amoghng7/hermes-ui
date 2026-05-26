@@ -21,6 +21,8 @@ export const Header: React.FC = () => {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [switchingProfileId, setSwitchingProfileId] = useState<string | null>(null);
   const profileMenuRef = useRef<HTMLDivElement>(null);
+  const profileMenuButtonRef = useRef<HTMLButtonElement>(null);
+  const profileMenuListRef = useRef<HTMLDivElement>(null);
   const profiles = useProfiles();
   const activeProfile = useActiveProfile();
   const setActiveProfile = useHermesStore((s) => s.setActiveProfile);
@@ -53,6 +55,20 @@ export const Header: React.FC = () => {
     } finally {
       setSwitchingProfileId(null);
     }
+  };
+
+  const getProfileMenuItems = (): HTMLElement[] => {
+    if (!profileMenuListRef.current) return [];
+    return Array.from(
+      profileMenuListRef.current.querySelectorAll<HTMLElement>('[data-profile-menu-item="true"]')
+    );
+  };
+
+  const focusProfileMenuItem = (index: number): void => {
+    const items = getProfileMenuItems();
+    if (!items.length) return;
+    const normalized = ((index % items.length) + items.length) % items.length;
+    items[normalized]?.focus();
   };
 
   return (
@@ -89,9 +105,30 @@ export const Header: React.FC = () => {
       <div className="flex items-center gap-2">
         <div ref={profileMenuRef} className="relative">
           <button
+            ref={profileMenuButtonRef}
             type="button"
             aria-label="Profile menu"
+            aria-haspopup="menu"
+            aria-controls="profile-menu"
             aria-expanded={profileMenuOpen}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowDown") {
+                event.preventDefault();
+                setProfileMenuOpen(true);
+                requestAnimationFrame(() => focusProfileMenuItem(0));
+              } else if (event.key === "ArrowUp") {
+                event.preventDefault();
+                setProfileMenuOpen(true);
+                requestAnimationFrame(() => focusProfileMenuItem(-1));
+              } else if ((event.key === "Enter" || event.key === " ") && !profileMenuOpen) {
+                event.preventDefault();
+                setProfileMenuOpen(true);
+                requestAnimationFrame(() => focusProfileMenuItem(0));
+              } else if (event.key === "Escape" && profileMenuOpen) {
+                event.preventDefault();
+                setProfileMenuOpen(false);
+              }
+            }}
             onClick={() => setProfileMenuOpen((open) => !open)}
             className="flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full border border-border-default text-on-surface-variant hover:text-on-surface hover:bg-hover-subtle transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
@@ -105,7 +142,35 @@ export const Header: React.FC = () => {
             <span className="material-symbols-outlined text-[1.125rem]" aria-hidden="true">expand_more</span>
           </button>
           {profileMenuOpen && (
-            <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 min-w-[15rem] rounded-2xl border border-border-default bg-surface-container-low shadow-xl p-2">
+            <div
+              ref={profileMenuListRef}
+              id="profile-menu"
+              role="menu"
+              aria-label="Select profile"
+              className="absolute right-0 top-[calc(100%+0.5rem)] z-50 min-w-[15rem] rounded-2xl border border-border-default bg-surface-container-low shadow-xl p-2"
+              onKeyDown={(event) => {
+                const items = getProfileMenuItems();
+                if (!items.length) return;
+                const currentIndex = items.findIndex((item) => item === document.activeElement);
+                if (event.key === "Escape") {
+                  event.preventDefault();
+                  setProfileMenuOpen(false);
+                  profileMenuButtonRef.current?.focus();
+                } else if (event.key === "ArrowDown") {
+                  event.preventDefault();
+                  focusProfileMenuItem(currentIndex + 1);
+                } else if (event.key === "ArrowUp") {
+                  event.preventDefault();
+                  focusProfileMenuItem(currentIndex - 1);
+                } else if (event.key === "Home") {
+                  event.preventDefault();
+                  focusProfileMenuItem(0);
+                } else if (event.key === "End") {
+                  event.preventDefault();
+                  focusProfileMenuItem(items.length - 1);
+                }
+              }}
+            >
               <div className="max-h-64 overflow-auto flex flex-col gap-1">
                 {profiles.map((profile) => {
                   const active = profile.id === activeProfile?.id;
@@ -113,6 +178,9 @@ export const Header: React.FC = () => {
                     <button
                       key={profile.id}
                       type="button"
+                      role="menuitemradio"
+                      aria-checked={active}
+                      data-profile-menu-item="true"
                       onClick={() => void handleProfileSwitch(profile.id)}
                       disabled={switchingProfileId === profile.id}
                       className={[
@@ -130,6 +198,8 @@ export const Header: React.FC = () => {
               <div className="mt-2 pt-2 border-t border-border-default">
                 <Link
                   href="/profiles"
+                  role="menuitem"
+                  data-profile-menu-item="true"
                   onClick={() => setProfileMenuOpen(false)}
                   className="block px-3 py-2 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-hover-subtle"
                 >
