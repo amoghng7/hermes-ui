@@ -35,13 +35,6 @@ function formatLastActive(profile: Profile): string {
   return date.toLocaleString();
 }
 
-const emptySettings: ProfileSettings = {
-  apiKeys: {},
-  defaultModel: "hermes",
-  enabledSkillIds: [],
-  enabledMcpServerIds: [],
-};
-
 export function ProfilesPageContent() {
   const storeProfiles = useProfiles();
   const activeProfile = useActiveProfile();
@@ -54,6 +47,7 @@ export function ProfilesPageContent() {
   const [models, setModels] = useState<string[]>(["hermes"]);
   const [settingsByProfile, setSettingsByProfile] = useState<Record<string, ProfileSettings>>({});
   const [settingsStatusByProfile, setSettingsStatusByProfile] = useState<Record<string, "idle" | "loading" | "loaded" | "error">>({});
+  const [settingsErrorByProfile, setSettingsErrorByProfile] = useState<Record<string, string>>({});
   const [revealedKeys, setRevealedKeys] = useState<Record<string, boolean>>({});
   const [expandedProfileId, setExpandedProfileId] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState("");
@@ -126,13 +120,21 @@ export function ProfilesPageContent() {
     if (status === "loading") return;
     if (!force && status === "loaded") return;
     setSettingsStatusByProfile((prev) => ({ ...prev, [profileId]: "loading" }));
+    setSettingsErrorByProfile((prev) => {
+      const next = { ...prev };
+      delete next[profileId];
+      return next;
+    });
     try {
       const settings = await getProfileSettings(profileId);
       setSettingsByProfile((prev) => ({ ...prev, [profileId]: settings }));
       setSettingsStatusByProfile((prev) => ({ ...prev, [profileId]: "loaded" }));
     } catch (err: unknown) {
       setSettingsStatusByProfile((prev) => ({ ...prev, [profileId]: "error" }));
-      setError(err instanceof Error ? err.message : "Failed to load profile settings.");
+      setSettingsErrorByProfile((prev) => ({
+        ...prev,
+        [profileId]: err instanceof Error ? err.message : "Failed to load profile settings.",
+      }));
     }
   }
 
@@ -198,9 +200,38 @@ export function ProfilesPageContent() {
     try {
       await deleteProfile(profile.id);
       await refreshProfilesRef.current();
+      setSettingsByProfile((prev) => {
+        const next = { ...prev };
+        delete next[profile.id];
+        return next;
+      });
+      setSettingsStatusByProfile((prev) => {
+        const next = { ...prev };
+        delete next[profile.id];
+        return next;
+      });
+      setSettingsErrorByProfile((prev) => {
+        const next = { ...prev };
+        delete next[profile.id];
+        return next;
+      });
       if (activeProfile?.id === profile.id) {
         const remaining = useHermesStore.getState().profiles;
-        if (remaining[0]) await setActiveProfile(remaining[0].id);
+        if (remaining[0]) {
+          await setActiveProfile(remaining[0].id);
+        } else {
+          useHermesStore.setState({
+            activeProfileId: null,
+            sessions: [],
+            activeSessionId: null,
+            memory: [],
+            streamingSessionId: null,
+            streamingMessageId: null,
+            messagesBySession: {},
+            toolCallsBySession: {},
+            agents: {},
+          });
+        }
       }
       setExpandedProfileId(null);
       setDeleteConfirm("");
@@ -245,7 +276,8 @@ export function ProfilesPageContent() {
           const settingsLoaded = settingsStatus === "loaded";
           const settingsLoading = settingsStatus === "loading";
           const settingsErrored = settingsStatus === "error";
-          const profileSettings = settingsByProfile[profile.id] ?? emptySettings;
+          const profileSettings = settingsByProfile[profile.id];
+          const settingsError = settingsErrorByProfile[profile.id];
           // Backend count if available, otherwise local settings count.
           const skillsCount =
             profile.skillsCount ??
@@ -331,7 +363,7 @@ export function ProfilesPageContent() {
                   )}
                   {settingsErrored && (
                     <div className="flex items-center justify-between gap-3 rounded-lg border border-status-error/30 bg-status-error/10 px-3 py-2">
-                      <p className="text-sm text-status-error">Failed to load settings.</p>
+                      <p className="text-sm text-status-error">{settingsError ?? "Failed to load settings."}</p>
                       <button
                         type="button"
                         onClick={() => void loadSettings(profile.id, true)}
@@ -341,6 +373,8 @@ export function ProfilesPageContent() {
                       </button>
                     </div>
                   )}
+                  {settingsStatus === "loaded" && profileSettings && (
+                    <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {PROVIDERS.map((provider) => {
                       const keyId = `${profile.id}:${provider}`;
@@ -490,6 +524,8 @@ export function ProfilesPageContent() {
                       {deletingId === profile.id ? "Deleting…" : "Delete profile"}
                     </button>
                   </div>
+                    </>
+                  )}
                 </div>
               )}
             </section>
