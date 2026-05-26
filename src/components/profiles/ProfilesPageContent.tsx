@@ -120,6 +120,7 @@ export function ProfilesPageContent() {
     requestAnimationFrame(() => createNameInputRef.current?.focus());
   }, [createOpen]);
 
+  // `force` is only used by the Retry action after a failed load.
   async function loadSettings(profileId: string, force = false): Promise<void> {
     const status = settingsStatusByProfile[profileId];
     if (status === "loading") return;
@@ -175,7 +176,7 @@ export function ProfilesPageContent() {
   async function saveSettings(profileId: string): Promise<void> {
     const current = settingsByProfile[profileId];
     if (!current || settingsStatusByProfile[profileId] !== "loaded") {
-      setError("Profile settings are not loaded yet. Reload and try again.");
+      setError("Profile settings are not loaded yet. Please collapse and re-expand this profile to retry.");
       return;
     }
     setSavingSettingsId(profileId);
