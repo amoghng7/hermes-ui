@@ -770,6 +770,7 @@ export async function listProfiles(
  */
 export async function createProfile(
   name: string,
+  options: { color?: string; description?: string } = {},
   opts: ClientOptions = {}
 ): Promise<Profile> {
   const baseUrl = opts.baseUrl ?? resolveBaseUrl();
@@ -778,7 +779,11 @@ export async function createProfile(
   const response = await fetchImpl(`${baseUrl}/v1/profiles`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...resolveAuthHeader() },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({
+      name,
+      ...(options.color ? { color: options.color } : {}),
+      ...(options.description ? { description: options.description } : {}),
+    }),
   });
   await assertOk(response);
   return response.json() as Promise<Profile>;

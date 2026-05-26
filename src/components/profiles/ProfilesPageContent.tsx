@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   createProfile,
   deleteProfile,
@@ -67,6 +67,8 @@ export function ProfilesPageContent() {
   const [createColor, setCreateColor] = useState("#6d5efc");
   const [createDescription, setCreateDescription] = useState("");
   const [creating, setCreating] = useState(false);
+  const createDialogRef = useRef<HTMLDivElement>(null);
+  const createNameInputRef = useRef<HTMLInputElement>(null);
 
   const refreshProfilesRef = useRef<() => Promise<void>>(async () => undefined);
 
@@ -112,6 +114,11 @@ export function ProfilesPageContent() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!createOpen) return;
+    requestAnimationFrame(() => createNameInputRef.current?.focus());
+  }, [createOpen]);
+
   async function loadSettings(profileId: string): Promise<void> {
     if (settingsByProfile[profileId]) return;
     try {
@@ -138,13 +145,11 @@ export function ProfilesPageContent() {
     setCreating(true);
     setError(null);
     try {
-      const created = await createProfile(name);
-      const decorated: Profile = {
-        ...created,
+      const created = await createProfile(name, {
         color: createColor,
         description: createDescription.trim() || undefined,
-      };
-      const next = [decorated, ...profiles];
+      });
+      const next = [created, ...profiles];
       setProfiles(next);
       useHermesStore.setState({ profiles: next });
       await setActiveProfile(created.id);
@@ -192,11 +197,6 @@ export function ProfilesPageContent() {
     }
   }
 
-  const skillsCountFallback = useMemo(
-    () => skills.filter((skill) => skill.enabled).length,
-    [skills]
-  );
-
   return (
     <div className="w-full max-w-6xl mx-auto px-4 md:px-2 py-4 flex flex-col gap-6">
       <div className="flex items-center justify-between gap-3">
@@ -228,7 +228,11 @@ export function ProfilesPageContent() {
           const isActive = activeProfile?.id === profile.id;
           const cardColor = profile.color ?? "#6d5efc";
           const profileSettings = settingsByProfile[profile.id] ?? emptySettings;
-          const skillsCount = profile.skillsCount ?? (profileSettings.enabledSkillIds.length || skillsCountFallback);
+          // Backend count if available, otherwise local settings count.
+          const skillsCount =
+            profile.skillsCount ??
+            settingsByProfile[profile.id]?.enabledSkillIds.length ??
+            0;
           return (
             <section
               key={profile.id}
@@ -254,7 +258,7 @@ export function ProfilesPageContent() {
                   </div>
                 </div>
                 {isActive && (
-                  <span className="material-symbols-outlined text-primary" aria-label="Active profile">
+                  <span className="material-symbols-outlined text-primary" aria-hidden="true">
                     check_circle
                   </span>
                 )}
@@ -457,11 +461,22 @@ export function ProfilesPageContent() {
 
       {createOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-2xl border border-border-default bg-surface-container-low p-5 flex flex-col gap-4">
-            <h2 className="text-lg font-semibold text-on-surface">Create profile</h2>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-profile-dialog-title"
+            ref={createDialogRef}
+            tabIndex={-1}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && !creating) setCreateOpen(false);
+            }}
+            className="w-full max-w-md rounded-2xl border border-border-default bg-surface-container-low p-5 flex flex-col gap-4"
+          >
+            <h2 id="create-profile-dialog-title" className="text-lg font-semibold text-on-surface">Create profile</h2>
             <label className="flex flex-col gap-1">
               <span className="text-xs text-on-surface-variant">Name</span>
               <input
+                ref={createNameInputRef}
                 value={createName}
                 onChange={(event) => setCreateName(event.target.value)}
                 className="rounded-xl border border-border-default bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -491,6 +506,7 @@ export function ProfilesPageContent() {
               <button
                 type="button"
                 onClick={() => setCreateOpen(false)}
+                disabled={creating}
                 className="px-4 py-2 rounded-xl border border-border-default text-sm text-on-surface-variant hover:bg-hover-subtle"
               >
                 Cancel
