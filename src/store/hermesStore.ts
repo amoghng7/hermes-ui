@@ -56,9 +56,15 @@ export interface HermesState {
 
 export interface HermesActions {
   /**
+   * Low-level setter for active profile id + cleared profile-scoped caches.
+   * Callers should generally use `switchProfile` for user-initiated profile changes.
+   */
+  setActiveProfile(id: string): void;
+
+  /**
    * Switch the active profile and reload sessions + memory for that profile.
    */
-  setActiveProfile(id: string): Promise<void>;
+  switchProfile(id: string): Promise<void>;
 
   /**
    * Create a new session via the Hermes gateway, add it to the list,
@@ -140,7 +146,9 @@ export interface HermesActions {
 // Store
 // ---------------------------------------------------------------------------
 
-export const useHermesStore = create<HermesState & HermesActions>((set, get) => ({
+export const useHermesStore = create<HermesState & HermesActions>((set, get) => {
+  let profileSwitchRequestVersion = 0;
+  return ({
   // ── Initial state ────────────────────────────────────────────────────────
   profiles: [],
   activeProfileId: null,
@@ -160,16 +168,22 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
-  async setActiveProfile(id: string) {
+  setActiveProfile(id: string) {
     set({ activeProfileId: id, sessions: [], activeSessionId: null, memory: [], streamingSessionId: null, streamingMessageId: null });
+  },
+
+  async switchProfile(id: string) {
+    const requestedId = id;
+    const requestVersion = ++profileSwitchRequestVersion;
+    get().setActiveProfile(requestedId);
     // Promise.allSettled ensures sessions still load even if the memory
     // endpoint is unavailable (e.g. 404 for a new profile).
     const [sessionsResult, memoryResult] = await Promise.allSettled([
-      listSessions(id),
-      getMemory(id),
+      listSessions(requestedId),
+      getMemory(requestedId),
     ]);
     // Discard stale response if profile switched again while awaiting.
-    if (get().activeProfileId !== id) return;
+    if (get().activeProfileId !== requestedId || profileSwitchRequestVersion !== requestVersion) return;
     const update: Partial<HermesState> = {};
     if (sessionsResult.status === "fulfilled") update.sessions = sessionsResult.value;
     if (memoryResult.status === "fulfilled") update.memory = memoryResult.value;
@@ -353,7 +367,8 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
   setPendingConfirmation(request: ConfirmationRequest | null) {
     set({ pendingConfirmation: request });
   },
-}));
+});
+});
 
 // ---------------------------------------------------------------------------
 // Bootstrap helper — load profiles on first mount (called from HermesProvider)
@@ -364,7 +379,7 @@ export async function bootstrapStore(): Promise<void> {
     const profiles = await listProfiles();
     useHermesStore.setState({ profiles });
     if (profiles.length > 0 && !useHermesStore.getState().activeProfileId) {
-      await useHermesStore.getState().setActiveProfile(profiles[0].id);
+      await useHermesStore.getState().switchProfile(profiles[0].id);
     }
   } catch {
     // Gateway not available — gracefully degrade to empty state.

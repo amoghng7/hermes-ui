@@ -19,6 +19,7 @@ import type {
   MemoryEntry,
   McpServer,
   Profile,
+  ProfileSettings,
   Session,
   Skill,
   ToolCall,
@@ -757,4 +758,103 @@ export async function listProfiles(
   });
   await assertOk(response);
   return response.json() as Promise<Profile[]>;
+}
+
+/**
+ * Create a new profile.
+ *
+ * @param name - Display name for the profile.
+ * @param opts - {@link ClientOptions}
+ * @returns The newly created {@link Profile}.
+ * @throws {HermesApiError} On non-2xx responses.
+ */
+export async function createProfile(
+  name: string,
+  options: { color?: string; description?: string } = {},
+  opts: ClientOptions = {}
+): Promise<Profile> {
+  const baseUrl = opts.baseUrl ?? resolveBaseUrl();
+  const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
+
+  const response = await fetchImpl(`${baseUrl}/v1/profiles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...resolveAuthHeader() },
+    body: JSON.stringify({
+      name,
+      ...(options.color ? { color: options.color } : {}),
+      ...(options.description ? { description: options.description } : {}),
+    }),
+  });
+  await assertOk(response);
+  return response.json() as Promise<Profile>;
+}
+
+/**
+ * Get settings for a profile.
+ *
+ * @param profileId - The profile ID.
+ * @param opts - {@link ClientOptions}
+ * @returns The persisted {@link ProfileSettings}.
+ * @throws {HermesApiError} On non-2xx responses.
+ */
+export async function getProfileSettings(
+  profileId: string,
+  opts: ClientOptions = {}
+): Promise<ProfileSettings> {
+  const baseUrl = opts.baseUrl ?? resolveBaseUrl();
+  const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
+
+  const response = await fetchImpl(`${baseUrl}/v1/profiles/${encodeURIComponent(profileId)}/settings`, {
+    headers: { ...resolveAuthHeader() },
+  });
+  await assertOk(response);
+  return response.json() as Promise<ProfileSettings>;
+}
+
+/**
+ * Update settings for a profile.
+ *
+ * @param profileId - The profile ID.
+ * @param settings - Partial profile settings payload.
+ * @param opts - {@link ClientOptions}
+ * @returns The updated {@link ProfileSettings}.
+ * @throws {HermesApiError} On non-2xx responses.
+ */
+export async function updateProfileSettings(
+  profileId: string,
+  settings: Partial<ProfileSettings>,
+  opts: ClientOptions = {}
+): Promise<ProfileSettings> {
+  const baseUrl = opts.baseUrl ?? resolveBaseUrl();
+  const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
+
+  const response = await fetchImpl(`${baseUrl}/v1/profiles/${encodeURIComponent(profileId)}/settings`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...resolveAuthHeader() },
+    body: JSON.stringify(settings),
+  });
+  await assertOk(response);
+  return response.json() as Promise<ProfileSettings>;
+}
+
+/**
+ * Delete a profile.
+ *
+ * @param profileId - The profile ID to delete.
+ * @param opts - {@link ClientOptions}
+ * @returns Resolves to `undefined` on success.
+ * @throws {HermesApiError} On non-2xx responses.
+ */
+export async function deleteProfile(
+  profileId: string,
+  opts: ClientOptions = {}
+): Promise<void> {
+  const baseUrl = opts.baseUrl ?? resolveBaseUrl();
+  const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
+
+  const response = await fetchImpl(`${baseUrl}/v1/profiles/${encodeURIComponent(profileId)}`, {
+    method: "DELETE",
+    headers: { ...resolveAuthHeader() },
+  });
+  await assertOk(response);
 }
