@@ -240,7 +240,13 @@ export function ProfilesPageContent() {
     setError(null);
     try {
       await deleteProfile(profile.id);
-      await refreshProfilesRef.current();
+
+      // Compute remaining profiles locally — don't rely on a refresh that may
+      // fail silently (doRefresh catches errors internally without throwing).
+      const remaining = profiles.filter((p) => p.id !== profile.id);
+      setProfiles(remaining);
+      useHermesStore.setState({ profiles: remaining });
+
       setSettingsByProfile((prev) => {
         const next = { ...prev };
         delete next[profile.id];
@@ -257,7 +263,6 @@ export function ProfilesPageContent() {
         return next;
       });
       if (activeProfile?.id === profile.id) {
-        const remaining = useHermesStore.getState().profiles;
         if (remaining[0]) {
           await switchProfile(remaining[0].id);
         } else {
@@ -274,6 +279,10 @@ export function ProfilesPageContent() {
           });
         }
       }
+
+      // Fire-and-forget refresh to update session counts etc. from the server.
+      // Failure here is non-critical — the local state is already correct.
+      void refreshProfilesRef.current();
       setExpandedProfileId(null);
       setDeleteConfirm("");
     } catch (err: unknown) {
