@@ -130,6 +130,24 @@ export interface Profile {
   name: string;
   /** ISO-8601 creation timestamp. */
   createdAt: string;
+  /** Optional ISO-8601 timestamp of latest profile activity. */
+  lastActiveAt?: string;
+  /** Optional profile description. */
+  description?: string;
+  /** Optional color hex used for avatar/chip. */
+  color?: string;
+  /** Optional precomputed session count. */
+  sessionCount?: number;
+  /** Optional precomputed enabled skill count. */
+  skillsCount?: number;
+}
+
+/** Per-profile settings persisted by the gateway. */
+export interface ProfileSettings {
+  apiKeys: Record<string, string>;
+  defaultModel: string;
+  enabledSkillIds: string[];
+  enabledMcpServerIds: string[];
 }
 
 // ---------------------------------------------------------------------------

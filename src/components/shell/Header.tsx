@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useHermesStore } from "@/store/hermesStore";
+import { useActiveProfile, useProfiles } from "@/store/hooks";
 
 const links = [
   { href: "/", label: "Interaction" },
@@ -10,11 +12,36 @@ const links = [
   { href: "/skills", label: "Skills" },
   { href: "/tuning", label: "Tuning" },
   { href: "/memory", label: "Memory" },
+  { href: "/profiles", label: "Profiles" },
 ] as const;
 
 export const Header: React.FC = () => {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
+  const profiles = useProfiles();
+  const activeProfile = useActiveProfile();
+  const setActiveProfile = useHermesStore((s) => s.setActiveProfile);
+
+  useEffect(() => {
+    if (!profileMenuOpen) return;
+    const onDocMouseDown = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, [profileMenuOpen]);
+
+  const activeProfileName = activeProfile?.name ?? "No profile";
+  const activeProfileInitials = activeProfileName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
 
   return (
     <header className="fixed top-0 w-full z-50 bg-surface-container-lowest/95 border-b border-border-default shadow-[var(--shadow-header)] flex justify-between items-center px-8 py-4">
@@ -48,12 +75,59 @@ export const Header: React.FC = () => {
 
       {/* Right controls */}
       <div className="flex items-center gap-2">
-        <button
-          aria-label="Account"
-          className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-hover-subtle transition-all rounded-full active:scale-95 duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        >
-          <span className="material-symbols-outlined" aria-hidden="true">account_circle</span>
-        </button>
+        <div ref={profileMenuRef} className="relative">
+          <button
+            type="button"
+            aria-label="Profile menu"
+            aria-expanded={profileMenuOpen}
+            onClick={() => setProfileMenuOpen((open) => !open)}
+            className="flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full border border-border-default text-on-surface-variant hover:text-on-surface hover:bg-hover-subtle transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          >
+            <span
+              aria-hidden="true"
+              className="h-7 w-7 rounded-full bg-primary text-white text-[0.6875rem] font-semibold flex items-center justify-center"
+            >
+              {activeProfileInitials || "NA"}
+            </span>
+            <span className="max-w-[8rem] truncate text-sm">{activeProfileName}</span>
+            <span className="material-symbols-outlined text-[1.125rem]" aria-hidden="true">expand_more</span>
+          </button>
+          {profileMenuOpen && (
+            <div className="absolute right-0 top-[calc(100%+0.5rem)] z-50 min-w-[15rem] rounded-2xl border border-border-default bg-surface-container-low shadow-xl p-2">
+              <div className="max-h-64 overflow-auto flex flex-col gap-1">
+                {profiles.map((profile) => {
+                  const active = profile.id === activeProfile?.id;
+                  return (
+                    <button
+                      key={profile.id}
+                      type="button"
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        void setActiveProfile(profile.id);
+                      }}
+                      className={[
+                        "w-full flex items-center justify-between px-3 py-2 rounded-xl text-sm transition-colors",
+                        active ? "bg-primary/10 text-primary" : "text-on-surface hover:bg-hover-subtle",
+                      ].join(" ")}
+                    >
+                      <span className="truncate">{profile.name}</span>
+                      {active && <span className="material-symbols-outlined text-[1rem]" aria-hidden="true">check</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="mt-2 pt-2 border-t border-border-default">
+                <Link
+                  href="/profiles"
+                  onClick={() => setProfileMenuOpen(false)}
+                  className="block px-3 py-2 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-hover-subtle"
+                >
+                  Manage profiles
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
         <button
           aria-label="Settings"
           className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-hover-subtle transition-all rounded-full active:scale-95 duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"

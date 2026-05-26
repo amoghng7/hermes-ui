@@ -9,6 +9,7 @@ const navItems = [
   { href: "/skills", icon: "extension", label: "Skills" },
   { href: "/tuning", icon: "tune", label: "Tuning" },
   { href: "/memory", icon: "bookmark", label: "Memory" },
+  { href: "/profiles", icon: "person", label: "Profiles" },
 ];
 
 export const MobileBottomNav: React.FC = () => {
