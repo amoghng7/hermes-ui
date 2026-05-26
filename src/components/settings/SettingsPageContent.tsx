@@ -62,7 +62,7 @@ const DEFAULT_BASE_URLS: Record<ProviderId, string> = {
   openai: "https://api.openai.com/v1",
   anthropic: "https://api.anthropic.com",
   ollama: "http://localhost:11434",
-  local: process.env["NEXT_PUBLIC_HERMES_BASE_URL"] ?? "http://localhost:8000",
+  local: process.env.NEXT_PUBLIC_HERMES_BASE_URL ?? "http://localhost:8000",
 };
 
 const DEFAULT_PERSISTED_SETTINGS: PersistedSettings = {
@@ -73,12 +73,19 @@ const DEFAULT_PERSISTED_SETTINGS: PersistedSettings = {
     local: { enabled: true, baseUrl: DEFAULT_BASE_URLS.local },
   },
   defaultProvider: "local",
-  gatewayUrl: process.env["NEXT_PUBLIC_HERMES_BASE_URL"] ?? "http://localhost:8000",
+  gatewayUrl: process.env.NEXT_PUBLIC_HERMES_BASE_URL ?? "http://localhost:8000",
   appearance: {
     theme: "dark",
     density: "comfortable",
     fontSize: "medium",
   },
+};
+const CLEAR_SESSIONS_CONFIRM_TEXT = "clear sessions";
+const RESET_MEMORY_CONFIRM_TEXT = "reset memory";
+const FONT_SIZE_PX: Record<FontSize, string> = {
+  small: "15px",
+  medium: "16px",
+  large: "17px",
 };
 
 function readPersistedSettings(): PersistedSettings {
@@ -137,7 +144,7 @@ function applyAppearanceSettings(appearance: AppearanceSettings): void {
   root.classList.toggle("dark", resolved === "dark");
   root.style.colorScheme = resolved;
   root.dataset.chatDensity = appearance.density;
-  root.style.fontSize = appearance.fontSize === "small" ? "15px" : appearance.fontSize === "large" ? "17px" : "16px";
+  root.style.fontSize = FONT_SIZE_PX[appearance.fontSize];
 }
 
 async function requestWithTimeout(url: string, init: RequestInit = {}, timeoutMs = 12000): Promise<Response> {
@@ -297,6 +304,7 @@ export function SettingsPageContent() {
 
   const runProviderTest = async (providerId: ProviderId): Promise<void> => {
     const provider = providerSettings[providerId];
+    const trimmedKey = provider.apiKey.trim();
     setProviderTests((prev) => ({ ...prev, [providerId]: { status: "running" } }));
     const start = performance.now();
 
@@ -307,10 +315,10 @@ export function SettingsPageContent() {
 
       if (providerId === "openai") {
         url = `${normalizedBase}/models`;
-        if (provider.apiKey.trim()) headers.Authorization = "Bearer " + provider.apiKey.trim();
+        if (trimmedKey) headers.Authorization = "Bearer ".concat(trimmedKey);
       } else if (providerId === "anthropic") {
         url = `${normalizedBase}/v1/models`;
-        if (provider.apiKey.trim()) headers["x-api-key"] = provider.apiKey.trim();
+        if (trimmedKey) headers["x-api-key"] = trimmedKey;
         headers["anthropic-version"] = "2023-06-01";
       } else if (providerId === "ollama") {
         url = `${normalizedBase}/api/tags`;
@@ -398,8 +406,8 @@ export function SettingsPageContent() {
       return;
     }
 
-    if (clearSessionsConfirm.trim().toLowerCase() !== "clear sessions") {
-      setErrorMessage('Type "clear sessions" to confirm bulk deletion.');
+    if (clearSessionsConfirm.trim().toLowerCase() !== CLEAR_SESSIONS_CONFIRM_TEXT) {
+      setErrorMessage(`Type "${CLEAR_SESSIONS_CONFIRM_TEXT}" to confirm bulk deletion.`);
       return;
     }
 
@@ -431,8 +439,8 @@ export function SettingsPageContent() {
       return;
     }
 
-    if (resetMemoryConfirm.trim().toLowerCase() !== "reset memory") {
-      setErrorMessage('Type "reset memory" to confirm memory reset.');
+    if (resetMemoryConfirm.trim().toLowerCase() !== RESET_MEMORY_CONFIRM_TEXT) {
+      setErrorMessage(`Type "${RESET_MEMORY_CONFIRM_TEXT}" to confirm memory reset.`);
       return;
     }
 
@@ -444,12 +452,12 @@ export function SettingsPageContent() {
       await updateMemory(activeProfile.id, "");
 
       const base = gatewayUrl.replace(/\/$/, "");
-      const authKey = process.env["NEXT_PUBLIC_HERMES_API_KEY"];
+      const authKey = process.env.NEXT_PUBLIC_HERMES_API_KEY;
       const headers: HeadersInit = {
         "Content-Type": "application/json",
       };
       if (authKey) {
-        headers.Authorization = "Bearer " + authKey;
+        headers.Authorization = "Bearer ".concat(authKey);
       }
 
       await Promise.allSettled([
@@ -603,7 +611,9 @@ export function SettingsPageContent() {
               className="rounded-xl border border-border-default bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               {models.map((model) => (
-                <option key={model} value={model}>{model}</option>
+                <option key={model} value={model}>
+                  {model}
+                </option>
               ))}
             </select>
           </label>
@@ -648,7 +658,7 @@ export function SettingsPageContent() {
             className={[
               "inline-flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-full border",
               gatewayStatus.state === "healthy"
-                ? "border-green-500/40 text-green-400 bg-green-500/10"
+                ? "border-primary/40 text-primary bg-primary/10"
                 : gatewayStatus.state === "unhealthy"
                   ? "border-status-error/40 text-status-error bg-status-error/10"
                   : "border-border-default text-on-surface-variant bg-surface-container",
@@ -658,7 +668,7 @@ export function SettingsPageContent() {
               className={[
                 "w-2 h-2 rounded-full",
                 gatewayStatus.state === "healthy"
-                  ? "bg-green-400"
+                  ? "bg-primary"
                   : gatewayStatus.state === "unhealthy"
                     ? "bg-status-error"
                     : "bg-on-surface-variant",
@@ -779,13 +789,16 @@ export function SettingsPageContent() {
               type="text"
               value={clearSessionsConfirm}
               onChange={(event) => setClearSessionsConfirm(event.target.value)}
-              placeholder='Type "clear sessions"'
+              placeholder={`Type "${CLEAR_SESSIONS_CONFIRM_TEXT}"`}
               className="rounded-xl border border-status-error/50 bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error"
             />
             <button
               type="button"
               onClick={() => void clearAllSessions()}
-              disabled={dangerBusy !== null || clearSessionsConfirm.trim().toLowerCase() !== "clear sessions"}
+              disabled={
+                dangerBusy !== null ||
+                clearSessionsConfirm.trim().toLowerCase() !== CLEAR_SESSIONS_CONFIRM_TEXT
+              }
               className="self-start px-4 py-2 rounded-xl bg-status-error text-white text-sm font-medium hover:bg-status-error/90 disabled:opacity-50"
             >
               {dangerBusy === "sessions" ? "Clearing…" : "Clear all sessions"}
@@ -799,13 +812,16 @@ export function SettingsPageContent() {
               type="text"
               value={resetMemoryConfirm}
               onChange={(event) => setResetMemoryConfirm(event.target.value)}
-              placeholder='Type "reset memory"'
+              placeholder={`Type "${RESET_MEMORY_CONFIRM_TEXT}"`}
               className="rounded-xl border border-status-error/50 bg-surface-container-lowest px-3 py-2 text-sm text-on-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error"
             />
             <button
               type="button"
               onClick={() => void resetMemory()}
-              disabled={dangerBusy !== null || resetMemoryConfirm.trim().toLowerCase() !== "reset memory"}
+              disabled={
+                dangerBusy !== null ||
+                resetMemoryConfirm.trim().toLowerCase() !== RESET_MEMORY_CONFIRM_TEXT
+              }
               className="self-start px-4 py-2 rounded-xl bg-status-error text-white text-sm font-medium hover:bg-status-error/90 disabled:opacity-50"
             >
               {dangerBusy === "memory" ? "Resetting…" : "Reset memory"}
