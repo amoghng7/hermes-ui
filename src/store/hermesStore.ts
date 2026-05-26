@@ -146,9 +146,9 @@ export interface HermesActions {
 // Store
 // ---------------------------------------------------------------------------
 
-let profileSwitchRequestVersion = 0;
-
-export const useHermesStore = create<HermesState & HermesActions>((set, get) => ({
+export const useHermesStore = create<HermesState & HermesActions>((set, get) => {
+  let profileSwitchRequestVersion = 0;
+  return ({
   // ── Initial state ────────────────────────────────────────────────────────
   profiles: [],
   activeProfileId: null,
@@ -367,7 +367,8 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
   setPendingConfirmation(request: ConfirmationRequest | null) {
     set({ pendingConfirmation: request });
   },
-}));
+});
+});
 
 // ---------------------------------------------------------------------------
 // Bootstrap helper — load profiles on first mount (called from HermesProvider)
