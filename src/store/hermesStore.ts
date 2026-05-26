@@ -56,7 +56,8 @@ export interface HermesState {
 
 export interface HermesActions {
   /**
-   * Set active profile id in state.
+   * Low-level setter for active profile id + cleared profile-scoped caches.
+   * Callers should generally use `switchProfile` for user-initiated profile changes.
    */
   setActiveProfile(id: string): void;
 

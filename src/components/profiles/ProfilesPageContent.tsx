@@ -118,7 +118,7 @@ export function ProfilesPageContent() {
       return;
     }
     const previous = createPreviouslyFocusedRef.current;
-    if (previous) {
+    if (previous && document.contains(previous)) {
       previous.focus();
       return;
     }
@@ -563,7 +563,7 @@ export function ProfilesPageContent() {
               if (!container) return;
               const focusable = Array.from(
                 container.querySelectorAll<HTMLElement>(
-                  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+                  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex^="-"])'
                 )
               );
               if (focusable.length === 0) {
