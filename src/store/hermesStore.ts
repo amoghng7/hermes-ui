@@ -146,6 +146,8 @@ export interface HermesActions {
 // Store
 // ---------------------------------------------------------------------------
 
+let profileSwitchRequestVersion = 0;
+
 export const useHermesStore = create<HermesState & HermesActions>((set, get) => ({
   // ── Initial state ────────────────────────────────────────────────────────
   profiles: [],
@@ -171,15 +173,17 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
   },
 
   async switchProfile(id: string) {
-    get().setActiveProfile(id);
+    const requestedId = id;
+    const requestVersion = ++profileSwitchRequestVersion;
+    get().setActiveProfile(requestedId);
     // Promise.allSettled ensures sessions still load even if the memory
     // endpoint is unavailable (e.g. 404 for a new profile).
     const [sessionsResult, memoryResult] = await Promise.allSettled([
-      listSessions(id),
-      getMemory(id),
+      listSessions(requestedId),
+      getMemory(requestedId),
     ]);
     // Discard stale response if profile switched again while awaiting.
-    if (get().activeProfileId !== id) return;
+    if (get().activeProfileId !== requestedId || profileSwitchRequestVersion !== requestVersion) return;
     const update: Partial<HermesState> = {};
     if (sessionsResult.status === "fulfilled") update.sessions = sessionsResult.value;
     if (memoryResult.status === "fulfilled") update.memory = memoryResult.value;
