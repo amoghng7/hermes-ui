@@ -212,7 +212,7 @@ export const Header: React.FC = () => {
                   );
                 })}
               </div>
-              <div role="separator" aria-hidden="true" className="mt-2 border-t border-border-default" />
+              <div role="separator" aria-orientation="horizontal" className="mt-2 border-t border-border-default" />
               <div role="group" aria-label="Profile management" className="pt-2">
                 <Link
                   href="/profiles"

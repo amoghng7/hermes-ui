@@ -66,6 +66,7 @@ export function ProfilesPageContent() {
   const createButtonRef = useRef<HTMLButtonElement>(null);
   const createNameInputRef = useRef<HTMLInputElement>(null);
   const createPreviouslyFocusedRef = useRef<HTMLElement | null>(null);
+  const createTabDirectionRef = useRef<"forward" | "backward">("forward");
 
   const refreshProfilesRef = useRef<() => Promise<void>>(async () => undefined);
 
@@ -129,8 +130,16 @@ export function ProfilesPageContent() {
       const container = createDialogRef.current;
       if (!container) return;
       if (container.contains(event.target as Node)) return;
-      const [firstFocusable] = getCreateDialogFocusableElements();
-      (firstFocusable ?? container).focus();
+      const focusable = getCreateDialogFocusableElements();
+      if (focusable.length === 0) {
+        container.focus();
+        return;
+      }
+      const target =
+        createTabDirectionRef.current === "backward"
+          ? focusable[focusable.length - 1]
+          : focusable[0];
+      target?.focus();
     };
     document.addEventListener("focusin", handleFocusIn);
     return () => document.removeEventListener("focusin", handleFocusIn);
@@ -580,6 +589,7 @@ export function ProfilesPageContent() {
                 return;
               }
               if (event.key !== "Tab") return;
+              createTabDirectionRef.current = event.shiftKey ? "backward" : "forward";
               const focusable = getCreateDialogFocusableElements();
               if (focusable.length === 0) {
                 event.preventDefault();
