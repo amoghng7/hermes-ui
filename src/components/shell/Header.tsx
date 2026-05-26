@@ -29,14 +29,14 @@ export const Header: React.FC = () => {
 
   useEffect(() => {
     if (!profileMenuOpen) return;
-    const onDocClick = (event: MouseEvent) => {
+    const onDocMouseDown = (event: MouseEvent) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
         setProfileMenuOpen(false);
-        profileMenuButtonRef.current?.focus();
+        requestAnimationFrame(() => profileMenuButtonRef.current?.focus());
       }
     };
-    document.addEventListener("click", onDocClick);
-    return () => document.removeEventListener("click", onDocClick);
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
   }, [profileMenuOpen]);
 
   const activeProfileName = activeProfile?.name ?? "No profile";

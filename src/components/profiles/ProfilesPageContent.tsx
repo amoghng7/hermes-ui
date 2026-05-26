@@ -118,7 +118,7 @@ export function ProfilesPageContent() {
       return;
     }
     const previous = createPreviouslyFocusedRef.current;
-    if (previous && typeof previous.focus === "function") {
+    if (previous) {
       previous.focus();
       return;
     }
@@ -565,7 +565,7 @@ export function ProfilesPageContent() {
                 container.querySelectorAll<HTMLElement>(
                   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
                 )
-              ).filter((el) => !el.hasAttribute("disabled"));
+              );
               if (focusable.length === 0) {
                 event.preventDefault();
                 return;
