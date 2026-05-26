@@ -273,9 +273,9 @@ export function ProfilesPageContent() {
           const isActive = activeProfile?.id === profile.id;
           const cardColor = profile.color ?? "#6d5efc";
           const settingsStatus = settingsStatusByProfile[profile.id] ?? "idle";
-          const settingsLoaded = settingsStatus === "loaded";
           const settingsLoading = settingsStatus === "loading";
           const settingsErrored = settingsStatus === "error";
+          const formDisabled = settingsStatus !== "loaded";
           const profileSettings = settingsByProfile[profile.id];
           const settingsError = settingsErrorByProfile[profile.id];
           // Backend count if available, otherwise local settings count.
@@ -359,7 +359,7 @@ export function ProfilesPageContent() {
               {expandedProfileId === profile.id && (
                 <div className="rounded-xl border border-border-default bg-surface-container-high p-4 flex flex-col gap-4">
                   {settingsLoading && (
-                    <p className="text-sm text-on-surface-variant">Loading profile settings…</p>
+                    <p role="status" aria-live="polite" className="text-sm text-on-surface-variant">Loading profile settings…</p>
                   )}
                   {settingsErrored && (
                     <div className="flex items-center justify-between gap-3 rounded-lg border border-status-error/30 bg-status-error/10 px-3 py-2">
@@ -385,7 +385,7 @@ export function ProfilesPageContent() {
                             <input
                               type={revealedKeys[keyId] ? "text" : "password"}
                               value={profileSettings.apiKeys[provider] ?? ""}
-                              disabled={!settingsLoaded || settingsLoading}
+                              disabled={formDisabled}
                               onChange={(event) =>
                                 setSettingsByProfile((prev) => ({
                                   ...prev,
@@ -403,7 +403,7 @@ export function ProfilesPageContent() {
                             />
                             <button
                               type="button"
-                              disabled={!settingsLoaded || settingsLoading}
+                              disabled={formDisabled}
                               onClick={() => setRevealedKeys((prev) => ({ ...prev, [keyId]: !prev[keyId] }))}
                               className="px-2 py-2 rounded-lg border border-border-default text-xs text-on-surface-variant hover:bg-hover-subtle disabled:opacity-50 disabled:cursor-not-allowed"
                             >
@@ -419,7 +419,7 @@ export function ProfilesPageContent() {
                     <span className="text-xs text-on-surface-variant uppercase tracking-wide">Default model</span>
                     <select
                       value={profileSettings.defaultModel}
-                      disabled={!settingsLoaded || settingsLoading}
+                      disabled={formDisabled}
                       onChange={(event) =>
                         setSettingsByProfile((prev) => ({
                           ...prev,
@@ -445,7 +445,7 @@ export function ProfilesPageContent() {
                               <input
                                 type="checkbox"
                                 checked={checked}
-                                disabled={!settingsLoaded || settingsLoading}
+                                disabled={formDisabled}
                                 onChange={(event) =>
                                   setSettingsByProfile((prev) => ({
                                     ...prev,
@@ -474,7 +474,7 @@ export function ProfilesPageContent() {
                               <input
                                 type="checkbox"
                                 checked={checked}
-                                disabled={!settingsLoaded || settingsLoading}
+                                disabled={formDisabled}
                                 onChange={(event) =>
                                   setSettingsByProfile((prev) => ({
                                     ...prev,
@@ -498,7 +498,7 @@ export function ProfilesPageContent() {
                   <button
                     type="button"
                     onClick={() => void saveSettings(profile.id)}
-                    disabled={savingSettingsId === profile.id || !settingsLoaded || settingsLoading}
+                    disabled={savingSettingsId === profile.id || formDisabled}
                     className="self-start px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium hover:bg-primary/90 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                   >
                     {savingSettingsId === profile.id ? "Saving…" : "Save settings (encrypted at rest)"}
