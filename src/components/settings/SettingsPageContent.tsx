@@ -51,6 +51,10 @@ type GatewayStatus = {
 };
 
 const SETTINGS_STORAGE_KEY = "hermes-ui.settings.v1";
+const VALID_PROVIDER_IDS: ReadonlySet<string> = new Set(["openai", "anthropic", "ollama", "local"]);
+const VALID_THEMES: ReadonlySet<string> = new Set(["light", "dark", "system"]);
+const VALID_DENSITIES: ReadonlySet<string> = new Set(["comfortable", "compact"]);
+const VALID_FONT_SIZES: ReadonlySet<string> = new Set(["small", "medium", "large"]);
 const PROVIDERS: Array<{ id: ProviderId; label: string }> = [
   { id: "openai", label: "OpenAI" },
   { id: "anthropic", label: "Anthropic" },
@@ -93,41 +97,71 @@ function readPersistedSettings(): PersistedSettings {
   try {
     const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
     if (!raw) return DEFAULT_PERSISTED_SETTINGS;
-    const parsed = JSON.parse(raw) as Partial<PersistedSettings>;
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const defaultProvider = typeof parsed["defaultProvider"] === "string" && VALID_PROVIDER_IDS.has(parsed["defaultProvider"])
+      ? parsed["defaultProvider"] as ProviderId
+      : DEFAULT_PERSISTED_SETTINGS.defaultProvider;
+    const parsedProviders = typeof parsed["providers"] === "object" && parsed["providers"] !== null
+      ? (parsed["providers"] as Record<string, unknown>)
+      : {};
+    const parsedAppearance = typeof parsed["appearance"] === "object" && parsed["appearance"] !== null
+      ? (parsed["appearance"] as Record<string, unknown>)
+      : {};
     return {
       providers: {
         openai: {
-          enabled: parsed.providers?.openai?.enabled ?? DEFAULT_PERSISTED_SETTINGS.providers.openai.enabled,
-          baseUrl: parsed.providers?.openai?.baseUrl ?? DEFAULT_PERSISTED_SETTINGS.providers.openai.baseUrl,
+          enabled: typeof (parsedProviders["openai"] as Record<string, boolean> | null)?.["enabled"] === "boolean"
+            ? (parsedProviders["openai"] as Record<string, boolean>)["enabled"]
+            : DEFAULT_PERSISTED_SETTINGS.providers.openai.enabled,
+          baseUrl: typeof (parsedProviders["openai"] as Record<string, string> | null)?.["baseUrl"] === "string"
+            ? (parsedProviders["openai"] as Record<string, string>)["baseUrl"]
+            : DEFAULT_PERSISTED_SETTINGS.providers.openai.baseUrl,
         },
         anthropic: {
-          enabled:
-            parsed.providers?.anthropic?.enabled ?? DEFAULT_PERSISTED_SETTINGS.providers.anthropic.enabled,
-          baseUrl:
-            parsed.providers?.anthropic?.baseUrl ?? DEFAULT_PERSISTED_SETTINGS.providers.anthropic.baseUrl,
+          enabled: typeof (parsedProviders["anthropic"] as Record<string, boolean> | null)?.["enabled"] === "boolean"
+            ? (parsedProviders["anthropic"] as Record<string, boolean>)["enabled"]
+            : DEFAULT_PERSISTED_SETTINGS.providers.anthropic.enabled,
+          baseUrl: typeof (parsedProviders["anthropic"] as Record<string, string> | null)?.["baseUrl"] === "string"
+            ? (parsedProviders["anthropic"] as Record<string, string>)["baseUrl"]
+            : DEFAULT_PERSISTED_SETTINGS.providers.anthropic.baseUrl,
         },
         ollama: {
-          enabled: parsed.providers?.ollama?.enabled ?? DEFAULT_PERSISTED_SETTINGS.providers.ollama.enabled,
-          baseUrl: parsed.providers?.ollama?.baseUrl ?? DEFAULT_PERSISTED_SETTINGS.providers.ollama.baseUrl,
+          enabled: typeof (parsedProviders["ollama"] as Record<string, boolean> | null)?.["enabled"] === "boolean"
+            ? (parsedProviders["ollama"] as Record<string, boolean>)["enabled"]
+            : DEFAULT_PERSISTED_SETTINGS.providers.ollama.enabled,
+          baseUrl: typeof (parsedProviders["ollama"] as Record<string, string> | null)?.["baseUrl"] === "string"
+            ? (parsedProviders["ollama"] as Record<string, string>)["baseUrl"]
+            : DEFAULT_PERSISTED_SETTINGS.providers.ollama.baseUrl,
         },
         local: {
-          enabled: parsed.providers?.local?.enabled ?? DEFAULT_PERSISTED_SETTINGS.providers.local.enabled,
-          baseUrl: parsed.providers?.local?.baseUrl ?? DEFAULT_PERSISTED_SETTINGS.providers.local.baseUrl,
+          enabled: typeof (parsedProviders["local"] as Record<string, boolean> | null)?.["enabled"] === "boolean"
+            ? (parsedProviders["local"] as Record<string, boolean>)["enabled"]
+            : DEFAULT_PERSISTED_SETTINGS.providers.local.enabled,
+          baseUrl: typeof (parsedProviders["local"] as Record<string, string> | null)?.["baseUrl"] === "string"
+            ? (parsedProviders["local"] as Record<string, string>)["baseUrl"]
+            : DEFAULT_PERSISTED_SETTINGS.providers.local.baseUrl,
         },
       },
-      defaultProvider: parsed.defaultProvider ?? DEFAULT_PERSISTED_SETTINGS.defaultProvider,
-      gatewayUrl: parsed.gatewayUrl ?? DEFAULT_PERSISTED_SETTINGS.gatewayUrl,
+      defaultProvider,
+      gatewayUrl: typeof parsed["gatewayUrl"] === "string"
+        ? parsed["gatewayUrl"]
+        : DEFAULT_PERSISTED_SETTINGS.gatewayUrl,
       appearance: {
-        theme: parsed.appearance?.theme ?? DEFAULT_PERSISTED_SETTINGS.appearance.theme,
-        density: parsed.appearance?.density ?? DEFAULT_PERSISTED_SETTINGS.appearance.density,
-        fontSize: parsed.appearance?.fontSize ?? DEFAULT_PERSISTED_SETTINGS.appearance.fontSize,
+        theme: typeof parsedAppearance["theme"] === "string" && VALID_THEMES.has(parsedAppearance["theme"])
+          ? parsedAppearance["theme"] as ThemeMode
+          : DEFAULT_PERSISTED_SETTINGS.appearance.theme,
+        density: typeof parsedAppearance["density"] === "string" && VALID_DENSITIES.has(parsedAppearance["density"])
+          ? parsedAppearance["density"] as ChatDensity
+          : DEFAULT_PERSISTED_SETTINGS.appearance.density,
+        fontSize: typeof parsedAppearance["fontSize"] === "string" && VALID_FONT_SIZES.has(parsedAppearance["fontSize"])
+          ? parsedAppearance["fontSize"] as FontSize
+          : DEFAULT_PERSISTED_SETTINGS.appearance.fontSize,
       },
     };
   } catch {
     return DEFAULT_PERSISTED_SETTINGS;
   }
 }
-
 function resolveTheme(theme: ThemeMode): "light" | "dark" {
   if (theme === "system") {
     return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -235,6 +269,17 @@ export function SettingsPageContent() {
     applyAppearanceSettings(appearance);
   }, [hydrated, providerSettings, defaultProvider, gatewayUrl, appearance]);
 
+  // Reconcile defaultProvider when its provider is disabled so the select
+  // never renders with a value that is not present in its options.
+  useEffect(() => {
+    if (!hydrated) return;
+    const enabled = PROVIDERS.filter((p) => providerSettings[p.id].enabled);
+    if (enabled.length === 0) return;
+    if (!enabled.some((p) => p.id === defaultProvider)) {
+      setDefaultProvider(enabled[0].id);
+    }
+  }, [hydrated, providerSettings, defaultProvider]);
+
   useEffect(() => {
     if (!activeProfile) return;
     let cancelled = false;
@@ -303,33 +348,16 @@ export function SettingsPageContent() {
   };
 
   const runProviderTest = async (providerId: ProviderId): Promise<void> => {
-    const provider = providerSettings[providerId];
-    const trimmedKey = provider.apiKey.trim();
     setProviderTests((prev) => ({ ...prev, [providerId]: { status: "running" } }));
     const start = performance.now();
 
     try {
-      const normalizedBase = provider.baseUrl.replace(/\/$/, "");
-      let url = "";
-      const headers: HeadersInit = {};
+      // Route provider connection tests through the Hermes gateway to avoid
+      // CORS failures on remote providers (OpenAI/Anthropic).
+      const gatewayBase = gatewayUrl.replace(/\/$/, "");
+      const url = `${gatewayBase}/v1/models?provider=${providerId}`;
 
-      if (providerId === "openai") {
-        url = `${normalizedBase}/models`;
-        if (trimmedKey) headers.Authorization = "Bearer ".concat(trimmedKey);
-      } else if (providerId === "anthropic") {
-        url = `${normalizedBase}/v1/models`;
-        if (trimmedKey) headers["x-api-key"] = trimmedKey;
-        headers["anthropic-version"] = "2023-06-01";
-      } else if (providerId === "ollama") {
-        url = `${normalizedBase}/api/tags`;
-      } else {
-        url = `${normalizedBase}/health`;
-      }
-
-      let response = await requestWithTimeout(url, { headers });
-      if (providerId === "local" && !response.ok) {
-        response = await requestWithTimeout(`${normalizedBase}/v1/models`, { headers });
-      }
+      const response = await requestWithTimeout(url);
       if (!response.ok) {
         throw new Error(`HTTP ${response.status} ${response.statusText}`);
       }
@@ -486,6 +514,7 @@ export function SettingsPageContent() {
         <p className="text-sm text-on-surface-variant mt-1">Model providers, gateway runtime status, appearance preferences, and destructive controls.</p>
       </div>
 
+      <div aria-live="polite" className="flex flex-col gap-3">
       {statusMessage && (
         <div className="rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-sm text-primary">
           {statusMessage}
@@ -496,6 +525,7 @@ export function SettingsPageContent() {
           {errorMessage}
         </div>
       )}
+      </div>
 
       <section className="rounded-2xl border border-border-default bg-surface-container-low p-5 flex flex-col gap-4">
         <div>
@@ -543,6 +573,8 @@ export function SettingsPageContent() {
                     />
                     <button
                       type="button"
+                      aria-pressed={revealedKeys[provider.id]}
+                      aria-label={`${revealedKeys[provider.id] ? "Hide" : "Show"} ${provider.label} API key`}
                       onClick={() =>
                         setRevealedKeys((prev) => ({ ...prev, [provider.id]: !prev[provider.id] }))
                       }
@@ -782,7 +814,7 @@ export function SettingsPageContent() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <div className="rounded-xl border border-status-error/40 bg-black/20 p-4 flex flex-col gap-3">
+          <div className="rounded-xl border border-status-error/40 bg-surface-container-lowest p-4 flex flex-col gap-3">
             <h3 className="text-sm font-semibold text-status-error">Clear all sessions</h3>
             <p className="text-xs text-status-error/90">Delete all sessions in the active profile ({sessions.length} currently loaded).</p>
             <input
@@ -799,13 +831,13 @@ export function SettingsPageContent() {
                 dangerBusy !== null ||
                 clearSessionsConfirm.trim().toLowerCase() !== CLEAR_SESSIONS_CONFIRM_TEXT
               }
-              className="self-start px-4 py-2 rounded-xl bg-status-error text-white text-sm font-medium hover:bg-status-error/90 disabled:opacity-50"
+              className="self-start px-4 py-2 rounded-xl bg-status-error text-on-surface text-sm font-medium hover:bg-status-error/90 disabled:opacity-50"
             >
               {dangerBusy === "sessions" ? "Clearing…" : "Clear all sessions"}
             </button>
           </div>
 
-          <div className="rounded-xl border border-status-error/40 bg-black/20 p-4 flex flex-col gap-3">
+          <div className="rounded-xl border border-status-error/40 bg-surface-container-lowest p-4 flex flex-col gap-3">
             <h3 className="text-sm font-semibold text-status-error">Reset memory</h3>
             <p className="text-xs text-status-error/90">Reset profile memory and attempt global HONCHO memory reset.</p>
             <input
@@ -822,7 +854,7 @@ export function SettingsPageContent() {
                 dangerBusy !== null ||
                 resetMemoryConfirm.trim().toLowerCase() !== RESET_MEMORY_CONFIRM_TEXT
               }
-              className="self-start px-4 py-2 rounded-xl bg-status-error text-white text-sm font-medium hover:bg-status-error/90 disabled:opacity-50"
+              className="self-start px-4 py-2 rounded-xl bg-status-error text-on-surface text-sm font-medium hover:bg-status-error/90 disabled:opacity-50"
             >
               {dangerBusy === "memory" ? "Resetting…" : "Reset memory"}
             </button>
