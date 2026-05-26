@@ -25,17 +25,18 @@ export const Header: React.FC = () => {
   const profileMenuListRef = useRef<HTMLDivElement>(null);
   const profiles = useProfiles();
   const activeProfile = useActiveProfile();
-  const setActiveProfile = useHermesStore((s) => s.setActiveProfile);
+  const switchProfile = useHermesStore((s) => s.switchProfile);
 
   useEffect(() => {
     if (!profileMenuOpen) return;
-    const onDocMouseDown = (event: MouseEvent) => {
+    const onDocClick = (event: MouseEvent) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
         setProfileMenuOpen(false);
+        profileMenuButtonRef.current?.focus();
       }
     };
-    document.addEventListener("mousedown", onDocMouseDown);
-    return () => document.removeEventListener("mousedown", onDocMouseDown);
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
   }, [profileMenuOpen]);
 
   const activeProfileName = activeProfile?.name ?? "No profile";
@@ -50,8 +51,9 @@ export const Header: React.FC = () => {
     if (switchingProfileId === profileId) return;
     setSwitchingProfileId(profileId);
     try {
-      await setActiveProfile(profileId);
+      await switchProfile(profileId);
       setProfileMenuOpen(false);
+      profileMenuButtonRef.current?.focus();
     } finally {
       setSwitchingProfileId(null);
     }
@@ -127,9 +129,18 @@ export const Header: React.FC = () => {
               } else if (event.key === "Escape" && profileMenuOpen) {
                 event.preventDefault();
                 setProfileMenuOpen(false);
+                profileMenuButtonRef.current?.focus();
               }
             }}
-            onClick={() => setProfileMenuOpen((open) => !open)}
+            onClick={() =>
+              setProfileMenuOpen((open) => {
+                const nextOpen = !open;
+                if (nextOpen) {
+                  requestAnimationFrame(() => focusProfileMenuItem(0));
+                }
+                return nextOpen;
+              })
+            }
             className="flex items-center gap-2 pl-1.5 pr-3 py-1.5 rounded-full border border-border-default text-on-surface-variant hover:text-on-surface hover:bg-hover-subtle transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           >
             <span
@@ -168,6 +179,12 @@ export const Header: React.FC = () => {
                 } else if (event.key === "End") {
                   event.preventDefault();
                   focusProfileMenuItem(items.length - 1);
+                } else if (event.key === "Tab") {
+                  setProfileMenuOpen(false);
+                  if (event.shiftKey) {
+                    event.preventDefault();
+                    profileMenuButtonRef.current?.focus();
+                  }
                 }
               }}
             >
@@ -200,7 +217,10 @@ export const Header: React.FC = () => {
                   href="/profiles"
                   role="menuitem"
                   data-profile-menu-item="true"
-                  onClick={() => setProfileMenuOpen(false)}
+                  onClick={() => {
+                    setProfileMenuOpen(false);
+                    profileMenuButtonRef.current?.focus();
+                  }}
                   className="block px-3 py-2 rounded-xl text-sm text-on-surface-variant hover:text-on-surface hover:bg-hover-subtle"
                 >
                   Manage profiles

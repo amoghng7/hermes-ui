@@ -56,9 +56,14 @@ export interface HermesState {
 
 export interface HermesActions {
   /**
+   * Set active profile id in state.
+   */
+  setActiveProfile(id: string): void;
+
+  /**
    * Switch the active profile and reload sessions + memory for that profile.
    */
-  setActiveProfile(id: string): Promise<void>;
+  switchProfile(id: string): Promise<void>;
 
   /**
    * Create a new session via the Hermes gateway, add it to the list,
@@ -160,8 +165,12 @@ export const useHermesStore = create<HermesState & HermesActions>((set, get) => 
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
-  async setActiveProfile(id: string) {
+  setActiveProfile(id: string) {
     set({ activeProfileId: id, sessions: [], activeSessionId: null, memory: [], streamingSessionId: null, streamingMessageId: null });
+  },
+
+  async switchProfile(id: string) {
+    get().setActiveProfile(id);
     // Promise.allSettled ensures sessions still load even if the memory
     // endpoint is unavailable (e.g. 404 for a new profile).
     const [sessionsResult, memoryResult] = await Promise.allSettled([
@@ -364,7 +373,7 @@ export async function bootstrapStore(): Promise<void> {
     const profiles = await listProfiles();
     useHermesStore.setState({ profiles });
     if (profiles.length > 0 && !useHermesStore.getState().activeProfileId) {
-      await useHermesStore.getState().setActiveProfile(profiles[0].id);
+      await useHermesStore.getState().switchProfile(profiles[0].id);
     }
   } catch {
     // Gateway not available — gracefully degrade to empty state.

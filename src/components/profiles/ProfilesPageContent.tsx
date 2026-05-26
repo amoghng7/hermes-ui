@@ -38,7 +38,7 @@ function formatLastActive(profile: Profile): string {
 export function ProfilesPageContent() {
   const storeProfiles = useProfiles();
   const activeProfile = useActiveProfile();
-  const setActiveProfile = useHermesStore((s) => s.setActiveProfile);
+  const switchProfile = useHermesStore((s) => s.switchProfile);
 
   const [profiles, setProfiles] = useState<Profile[]>(storeProfiles);
   const [sessionCounts, setSessionCounts] = useState<Record<string, number>>({});
@@ -63,7 +63,9 @@ export function ProfilesPageContent() {
   const [createDescription, setCreateDescription] = useState("");
   const [creating, setCreating] = useState(false);
   const createDialogRef = useRef<HTMLDivElement>(null);
+  const createButtonRef = useRef<HTMLButtonElement>(null);
   const createNameInputRef = useRef<HTMLInputElement>(null);
+  const createPreviouslyFocusedRef = useRef<HTMLElement | null>(null);
 
   const refreshProfilesRef = useRef<() => Promise<void>>(async () => undefined);
 
@@ -110,8 +112,17 @@ export function ProfilesPageContent() {
   }, []);
 
   useEffect(() => {
-    if (!createOpen) return;
-    requestAnimationFrame(() => createNameInputRef.current?.focus());
+    if (createOpen) {
+      createPreviouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      requestAnimationFrame(() => createNameInputRef.current?.focus());
+      return;
+    }
+    const previous = createPreviouslyFocusedRef.current;
+    if (previous && typeof previous.focus === "function") {
+      previous.focus();
+      return;
+    }
+    createButtonRef.current?.focus();
   }, [createOpen]);
 
   // `force` is only used by the Retry action after a failed load.
@@ -142,7 +153,7 @@ export function ProfilesPageContent() {
     setSwitchingId(profileId);
     setError(null);
     try {
-      await setActiveProfile(profileId);
+      await switchProfile(profileId);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to switch profile.");
     } finally {
@@ -164,7 +175,7 @@ export function ProfilesPageContent() {
       const next = [created, ...profiles];
       setProfiles(next);
       useHermesStore.setState({ profiles: next });
-      await setActiveProfile(created.id);
+      await switchProfile(created.id);
       setCreateOpen(false);
       setCreateName("");
       setCreateDescription("");
@@ -218,7 +229,7 @@ export function ProfilesPageContent() {
       if (activeProfile?.id === profile.id) {
         const remaining = useHermesStore.getState().profiles;
         if (remaining[0]) {
-          await setActiveProfile(remaining[0].id);
+          await switchProfile(remaining[0].id);
         } else {
           useHermesStore.setState({
             activeProfileId: null,
@@ -252,6 +263,7 @@ export function ProfilesPageContent() {
           </p>
         </div>
         <button
+          ref={createButtonRef}
           type="button"
           onClick={() => setCreateOpen(true)}
           className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -542,7 +554,32 @@ export function ProfilesPageContent() {
             ref={createDialogRef}
             tabIndex={-1}
             onKeyDown={(event) => {
-              if (event.key === "Escape" && !creating) setCreateOpen(false);
+              if (event.key === "Escape" && !creating) {
+                setCreateOpen(false);
+                return;
+              }
+              if (event.key !== "Tab") return;
+              const container = createDialogRef.current;
+              if (!container) return;
+              const focusable = Array.from(
+                container.querySelectorAll<HTMLElement>(
+                  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+                )
+              ).filter((el) => !el.hasAttribute("disabled"));
+              if (focusable.length === 0) {
+                event.preventDefault();
+                return;
+              }
+              const first = focusable[0];
+              const last = focusable[focusable.length - 1];
+              const active = document.activeElement as HTMLElement | null;
+              if (event.shiftKey && active === first) {
+                event.preventDefault();
+                last.focus();
+              } else if (!event.shiftKey && active === last) {
+                event.preventDefault();
+                first.focus();
+              }
             }}
             className="w-full max-w-md rounded-2xl border border-border-default bg-surface-container-low p-5 flex flex-col gap-4"
           >
