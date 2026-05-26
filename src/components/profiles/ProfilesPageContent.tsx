@@ -111,12 +111,33 @@ export function ProfilesPageContent() {
     };
   }, []);
 
+  const getCreateDialogFocusableElements = (): HTMLElement[] => {
+    const container = createDialogRef.current;
+    if (!container) return [];
+    return Array.from(
+      container.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex^="-"])'
+      )
+    );
+  };
+
   useEffect(() => {
-    if (createOpen) {
-      createPreviouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-      requestAnimationFrame(() => createNameInputRef.current?.focus());
-      return;
-    }
+    if (!createOpen) return;
+    createPreviouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    requestAnimationFrame(() => createNameInputRef.current?.focus());
+    const handleFocusIn = (event: FocusEvent): void => {
+      const container = createDialogRef.current;
+      if (!container) return;
+      if (container.contains(event.target as Node)) return;
+      const [firstFocusable] = getCreateDialogFocusableElements();
+      (firstFocusable ?? container).focus();
+    };
+    document.addEventListener("focusin", handleFocusIn);
+    return () => document.removeEventListener("focusin", handleFocusIn);
+  }, [createOpen]);
+
+  useEffect(() => {
+    if (createOpen) return;
     const previous = createPreviouslyFocusedRef.current;
     if (previous && document.contains(previous)) {
       previous.focus();
@@ -559,13 +580,7 @@ export function ProfilesPageContent() {
                 return;
               }
               if (event.key !== "Tab") return;
-              const container = createDialogRef.current;
-              if (!container) return;
-              const focusable = Array.from(
-                container.querySelectorAll<HTMLElement>(
-                  'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex^="-"])'
-                )
-              );
+              const focusable = getCreateDialogFocusableElements();
               if (focusable.length === 0) {
                 event.preventDefault();
                 return;

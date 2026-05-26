@@ -188,7 +188,7 @@ export const Header: React.FC = () => {
                 }
               }}
             >
-              <div className="max-h-64 overflow-auto flex flex-col gap-1">
+              <div role="group" aria-label="Switch active profile" className="max-h-64 overflow-auto flex flex-col gap-1">
                 {profiles.map((profile) => {
                   const active = profile.id === activeProfile?.id;
                   return (
@@ -212,7 +212,8 @@ export const Header: React.FC = () => {
                   );
                 })}
               </div>
-              <div className="mt-2 pt-2 border-t border-border-default">
+              <div role="separator" aria-hidden="true" className="mt-2 border-t border-border-default" />
+              <div role="group" aria-label="Profile management" className="pt-2">
                 <Link
                   href="/profiles"
                   role="menuitem"
