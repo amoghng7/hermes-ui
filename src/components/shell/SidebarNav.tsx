@@ -2,18 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-const navItems = [
-  { href: "/", icon: "terminal", label: "Interaction" },
-  { href: "/agents", icon: "hub", label: "Agents" },
-  { href: "/skills", icon: "extension", label: "Skills" },
-  { href: "/settings", icon: "tune", label: "Settings" },
-  { href: "/memory", icon: "bookmark", label: "Memory" },
-  { href: "/profiles", icon: "person", label: "Profiles" },
-];
+import { useActiveProfile } from "@/store/hooks";
+import { navItems } from "./navItems";
 
 export const SidebarNav: React.FC = () => {
   const pathname = usePathname();
+  const activeProfile = useActiveProfile();
+
+  const activeProfileName = activeProfile?.name ?? "No profile";
+  const activeProfileInitials = activeProfileName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
 
   return (
     <nav
@@ -22,13 +24,14 @@ export const SidebarNav: React.FC = () => {
     >
       <div className="text-primary font-black font-outfit text-sm" aria-hidden="true">H AI</div>
       <div className="w-10 h-px bg-border-default" role="separator" />
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-6 flex-1">
         {navItems.map(({ href, icon, label }) => {
           const active = pathname === href;
           return (
             <Link
               key={href}
               href={href}
+              title={label}
               aria-label={label}
               aria-current={active ? "page" : undefined}
               className={[
@@ -43,6 +46,24 @@ export const SidebarNav: React.FC = () => {
           );
         })}
       </div>
+      {/* Active profile chip */}
+      <Link
+        href="/profiles"
+        title={activeProfileName}
+        aria-label={`Active profile: ${activeProfileName}`}
+        aria-current={pathname === "/profiles" ? "page" : undefined}
+        className="flex flex-col items-center gap-1 p-2 rounded-2xl transition-all hover:bg-hover-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      >
+        <span
+          aria-hidden="true"
+          className="h-8 w-8 rounded-full bg-primary text-white text-xs font-semibold flex items-center justify-center"
+        >
+          {activeProfileInitials || "NA"}
+        </span>
+        <span className="text-[0.625rem] text-on-surface-variant truncate max-w-[3.5rem] text-center">
+          {activeProfileName}
+        </span>
+      </Link>
     </nav>
   );
 };
