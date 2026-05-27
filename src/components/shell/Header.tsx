@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useHermesStore } from "@/store/hermesStore";
 import { useActiveProfile, useProfiles } from "@/store/hooks";
@@ -17,15 +17,18 @@ const links = [
 
 export const Header: React.FC = () => {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [switchingProfileId, setSwitchingProfileId] = useState<string | null>(null);
+  const [isCreatingSession, setIsCreatingSession] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const profileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const profileMenuListRef = useRef<HTMLDivElement>(null);
   const profiles = useProfiles();
   const activeProfile = useActiveProfile();
   const switchProfile = useHermesStore((s) => s.switchProfile);
+  const createSession = useHermesStore((s) => s.createSession);
 
   useEffect(() => {
     if (!profileMenuOpen) return;
@@ -56,6 +59,17 @@ export const Header: React.FC = () => {
       profileMenuButtonRef.current?.focus();
     } finally {
       setSwitchingProfileId(null);
+    }
+  };
+
+  const handleNewChat = async (): Promise<void> => {
+    if (isCreatingSession) return;
+    setIsCreatingSession(true);
+    try {
+      const newSession = await createSession();
+      router.push(`/s/${newSession.id}`);
+    } finally {
+      setIsCreatingSession(false);
     }
   };
 
@@ -105,6 +119,16 @@ export const Header: React.FC = () => {
 
       {/* Right controls */}
       <div className="flex items-center gap-2">
+        <button
+          type="button"
+          aria-label="New chat"
+          title="New chat"
+          disabled={isCreatingSession}
+          onClick={() => void handleNewChat()}
+          className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-hover-subtle transition-all rounded-full active:scale-95 duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span className="material-symbols-outlined" aria-hidden="true">add</span>
+        </button>
         <div ref={profileMenuRef} className="relative">
           <button
             ref={profileMenuButtonRef}
