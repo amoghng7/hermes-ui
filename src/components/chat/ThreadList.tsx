@@ -122,7 +122,7 @@ const SessionItem: React.FC<SessionItemProps> = ({
       className={[
         "group flex items-stretch gap-1 rounded-2xl transition-all",
         isActive
-          ? "bg-primary/10 ring-1 ring-primary/50"
+          ? "bg-surface-accent ring-1 ring-primary/30"
           : "hover:bg-hover-subtle",
       ].join(" ")}
     >
@@ -400,7 +400,7 @@ export const ThreadList: React.FC = () => {
               type="button"
               onClick={() => void handleNewChat()}
               disabled={isCreating}
-              className="px-4 py-2 rounded-xl bg-primary text-white text-[0.875rem] font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="px-4 py-2 rounded-xl bg-primary text-on-primary-container text-[0.875rem] font-semibold hover:opacity-90 disabled:opacity-60 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               {isCreating ? "Creating…" : "Start your first conversation"}
             </button>

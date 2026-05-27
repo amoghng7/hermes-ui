@@ -196,7 +196,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
           className="w-12 h-12 rounded-2xl bg-primary-container flex items-center justify-center hover:scale-105 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-70 disabled:cursor-not-allowed"
           onClick={() => void submit()}
         >
-          <span className="material-symbols-outlined text-white" aria-hidden="true">
+          <span className="material-symbols-outlined text-on-primary-container" aria-hidden="true">
             send
           </span>
         </button>

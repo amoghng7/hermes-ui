@@ -93,7 +93,7 @@ function AgentCard({ agent, onClick }: AgentCardProps) {
           style={{
             borderColor: `hsl(${hue} 50% 45%)`,
             background: `hsl(${hue} 30% 20%)`,
-            boxShadow: `0 0 10px hsl(${hue} 50% 40% / 25%)`,
+            boxShadow: isActive ? `0 0 5px hsl(${hue} 50% 40% / 25%)` : "none",
           }}
           aria-hidden="true"
         >

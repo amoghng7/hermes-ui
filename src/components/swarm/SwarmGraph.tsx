@@ -621,11 +621,11 @@ export function SwarmGraph({
                       r={r}
                       fill="none"
                       stroke={colors.pulse}
-                      strokeWidth={3}
+                      strokeWidth={2}
                       style={
                         {
                           "--pulse-r-start": `${r}px`,
-                          "--pulse-r-end": `${r + 14}px`,
+                          "--pulse-r-end": `${r + 7}px`,
                         } as React.CSSProperties
                       }
                     />

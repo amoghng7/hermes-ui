@@ -277,7 +277,7 @@ function DiscardChangesDialog({
           <button
             type="button"
             onClick={onConfirm}
-            className="px-4 py-2 rounded-xl text-sm font-semibold bg-status-error text-white hover:bg-status-error/90 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error"
+            className="px-4 py-2 rounded-xl text-sm font-semibold bg-status-error text-on-primary-container hover:bg-status-error/90 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error"
           >
             Discard
           </button>

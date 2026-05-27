@@ -123,7 +123,7 @@ const markdownComponents: Components = {
   },
   // Paragraphs
   p({ children }) {
-    return <p className="text-[1rem] text-on-surface leading-relaxed mb-2 last:mb-0">{children}</p>;
+    return <p className="text-[1rem] text-on-surface leading-[1.7] mb-[0.5rem] last:mb-0">{children}</p>;
   },
   // Unordered lists
   ul({ children }) {

@@ -151,7 +151,7 @@ export function ConfirmationDialog({
             onClick={handleApprove}
             className={[
               "px-5 py-2 rounded-xl text-[0.875rem] font-medium transition-colors",
-              "bg-status-error text-white hover:opacity-90",
+              "bg-status-error text-on-primary-container hover:opacity-90",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error",
             ].join(" ")}
           >

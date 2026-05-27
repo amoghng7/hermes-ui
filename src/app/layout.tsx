@@ -4,12 +4,19 @@ import { Header } from "@/components/shell/Header";
 import { SidebarNav } from "@/components/shell/SidebarNav";
 import { MobileBottomNav } from "@/components/shell/MobileBottomNav";
 import { HermesProvider } from "@/components/providers/HermesProvider";
-import { Outfit, Epilogue, Be_Vietnam_Pro, JetBrains_Mono } from "next/font/google";
+import { Outfit, Epilogue, Be_Vietnam_Pro, JetBrains_Mono, Inter } from "next/font/google";
 
 const outfit = Outfit({
   subsets: ["latin"],
   weight: ["400", "700", "900"],
   variable: "--nf-outfit",
+  display: "swap",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+  variable: "--nf-inter",
   display: "swap",
 });
 
@@ -50,6 +57,7 @@ export default function RootLayout({
       className={[
         "dark",
         outfit.variable,
+        inter.variable,
         epilogue.variable,
         beVietnamPro.variable,
         jetbrainsMono.variable,
