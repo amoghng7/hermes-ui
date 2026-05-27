@@ -110,11 +110,6 @@
 
 :root {
   color-scheme: dark;
-  /* Surface ladder also in :root to ensure availability as raw CSS vars */
-  --color-surface-1: #16161b;
-  --color-surface-2: #1c1c22;
-  --color-surface-3: #222228;
-  --color-surface-4: #28282f;
 }
 
 body {
