@@ -175,7 +175,7 @@ export const Header: React.FC = () => {
           >
             <span
               aria-hidden="true"
-              className="h-7 w-7 rounded-full bg-primary text-white text-[0.6875rem] font-semibold flex items-center justify-center"
+              className="h-7 w-7 rounded-full bg-primary text-on-primary-container text-[0.6875rem] font-semibold flex items-center justify-center"
             >
               {activeProfileInitials || "NA"}
             </span>

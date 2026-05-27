@@ -83,7 +83,7 @@ Colors and fonts are defined in `globals.css` via `@theme` block — there is **
 
 ### Fonts (loaded via Google Fonts CDN in layout.tsx)
 - Headings: Epilogue (`font-h1`, `font-h2`)
-- Body: Be Vietnam Pro (`font-body`, `font-button`, `font-body-small`)
+- Body: Inter (`font-body`, `font-button`, `font-body-small`)
 - Brand: Outfit (`font-outfit`)
 - Code: JetBrains Mono (`font-code`)
 - Icons: Material Symbols Outlined (`material-symbols-outlined` class + `<span>` element, FILL/wght variations in CSS)

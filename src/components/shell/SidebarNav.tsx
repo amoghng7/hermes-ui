@@ -37,7 +37,7 @@ export const SidebarNav: React.FC = () => {
               className={[
                 "p-3 rounded-2xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
                 active
-                  ? "bg-primary/10 text-primary ring-1 ring-primary/50"
+                  ? "bg-surface-accent text-primary ring-1 ring-primary/30"
                   : "text-on-surface-variant hover:text-primary hover:bg-hover-subtle",
               ].join(" ")}
             >
@@ -56,7 +56,7 @@ export const SidebarNav: React.FC = () => {
       >
         <span
           aria-hidden="true"
-          className="h-8 w-8 rounded-full bg-primary text-white text-xs font-semibold flex items-center justify-center"
+          className="h-8 w-8 rounded-full bg-primary text-on-primary-container text-xs font-semibold flex items-center justify-center"
         >
           {activeProfileInitials || "NA"}
         </span>

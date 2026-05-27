@@ -525,7 +525,7 @@ export function ChatSection({ sessionId }: ChatSectionProps) {
               type="button"
               onClick={() => void handleCreateSession()}
               disabled={isCreatingSession}
-              className="mt-6 px-4 py-2 rounded-xl bg-primary text-white hover:opacity-90 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+              className="mt-6 px-4 py-2 rounded-xl bg-primary text-on-primary-container hover:opacity-90 disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               {isCreatingSession ? "Creating..." : "Start new session"}
             </button>

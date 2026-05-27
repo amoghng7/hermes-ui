@@ -346,7 +346,7 @@ export function ProfilesPageContent() {
                 <div className="flex items-center gap-3 min-w-0">
                   <span
                     aria-hidden="true"
-                    className="h-10 w-10 rounded-full text-white text-sm font-semibold flex items-center justify-center shrink-0"
+                    className="h-10 w-10 rounded-full text-on-primary-container text-sm font-semibold flex items-center justify-center shrink-0"
                     style={{ backgroundColor: cardColor }}
                   >
                     {initials(profile.name)}
@@ -570,7 +570,7 @@ export function ProfilesPageContent() {
                       type="button"
                       onClick={() => void handleDeleteProfile(profile)}
                       disabled={deleteConfirm !== profile.name || deletingId === profile.id}
-                      className="self-start px-4 py-2 rounded-xl bg-status-error text-white text-sm font-medium hover:bg-status-error/90 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error"
+                      className="self-start px-4 py-2 rounded-xl bg-status-error text-on-primary-container text-sm font-medium hover:bg-status-error/90 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-status-error"
                     >
                       {deletingId === profile.id ? "Deleting…" : "Delete profile"}
                     </button>
