@@ -3,15 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useActiveProfile } from "@/store/hooks";
-
-const navItems = [
-  { href: "/", icon: "terminal", label: "Interaction" },
-  { href: "/agents", icon: "hub", label: "Agents" },
-  { href: "/skills", icon: "extension", label: "Skills" },
-  { href: "/memory", icon: "database", label: "Memory" },
-  { href: "/profiles", icon: "manage_accounts", label: "Profiles" },
-  { href: "/settings", icon: "settings", label: "Settings" },
-];
+import { navItems } from "./navItems";
 
 export const SidebarNav: React.FC = () => {
   const pathname = usePathname();
@@ -59,6 +51,7 @@ export const SidebarNav: React.FC = () => {
         href="/profiles"
         title={activeProfileName}
         aria-label={`Active profile: ${activeProfileName}`}
+        aria-current={pathname === "/profiles" ? "page" : undefined}
         className="flex flex-col items-center gap-1 p-2 rounded-2xl transition-all hover:bg-hover-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
         <span

@@ -22,6 +22,7 @@ export const Header: React.FC = () => {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [switchingProfileId, setSwitchingProfileId] = useState<string | null>(null);
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const creatingRef = useRef(false);
   const profileMenuRef = useRef<HTMLDivElement>(null);
   const profileMenuButtonRef = useRef<HTMLButtonElement>(null);
   const profileMenuListRef = useRef<HTMLDivElement>(null);
@@ -63,12 +64,17 @@ export const Header: React.FC = () => {
   };
 
   const handleNewChat = async (): Promise<void> => {
-    if (isCreatingSession) return;
+    if (creatingRef.current) return;
+    creatingRef.current = true;
     setIsCreatingSession(true);
     try {
       const newSession = await createSession();
       router.push(`/s/${newSession.id}`);
+    } catch {
+      // Silently degrade — session creation failed (network error, etc.)
+      // Future: surface via toast notification
     } finally {
+      creatingRef.current = false;
       setIsCreatingSession(false);
     }
   };
@@ -124,7 +130,7 @@ export const Header: React.FC = () => {
           aria-label="New chat"
           title="New chat"
           disabled={isCreatingSession}
-          onClick={() => void handleNewChat()}
+          onClick={() => { handleNewChat().catch(() => {}) }}
           className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-hover-subtle transition-all rounded-full active:scale-95 duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <span className="material-symbols-outlined" aria-hidden="true">add</span>

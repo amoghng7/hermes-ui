@@ -2,15 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-const navItems = [
-  { href: "/", icon: "terminal", label: "Interaction" },
-  { href: "/agents", icon: "hub", label: "Agents" },
-  { href: "/skills", icon: "extension", label: "Skills" },
-  { href: "/memory", icon: "database", label: "Memory" },
-  { href: "/profiles", icon: "manage_accounts", label: "Profiles" },
-  { href: "/settings", icon: "settings", label: "Settings" },
-];
+import { navItems } from "./navItems";
 
 export const MobileBottomNav: React.FC = () => {
   const pathname = usePathname();
@@ -29,7 +21,7 @@ export const MobileBottomNav: React.FC = () => {
             aria-label={label}
             aria-current={active ? "page" : undefined}
             className={[
-              "flex flex-col items-center gap-1 px-3 py-2 rounded-xl min-w-[48px] min-h-[48px] justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+              "flex flex-col items-center gap-1 px-2 py-2 rounded-xl min-w-[44px] min-h-[48px] justify-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
               active
                 ? "text-primary"
                 : "text-on-surface-variant hover:text-on-surface",
@@ -38,9 +30,11 @@ export const MobileBottomNav: React.FC = () => {
             <span className="material-symbols-outlined text-[24px]" aria-hidden="true">
               {icon}
             </span>
-            <span className="text-[0.625rem] font-medium tracking-wide uppercase">
-              {label}
-            </span>
+            {active && (
+              <span className="text-[0.625rem] font-medium tracking-wide uppercase">
+                {label}
+              </span>
+            )}
           </Link>
         );
       })}
