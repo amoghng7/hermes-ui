@@ -10,7 +10,7 @@ const links = [
   { href: "/", label: "Interaction" },
   { href: "/agents", label: "Agents" },
   { href: "/skills", label: "Skills" },
-  { href: "/tuning", label: "Tuning" },
+  { href: "/settings", label: "Settings" },
   { href: "/memory", label: "Memory" },
   { href: "/profiles", label: "Profiles" },
 ] as const;
@@ -230,12 +230,13 @@ export const Header: React.FC = () => {
             </div>
           )}
         </div>
-        <button
+        <Link
+          href="/settings"
           aria-label="Settings"
           className="p-2 text-on-surface-variant hover:text-on-surface hover:bg-hover-subtle transition-all rounded-full active:scale-95 duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
         >
           <span className="material-symbols-outlined" aria-hidden="true">settings</span>
-        </button>
+        </Link>
         {/* Mobile hamburger */}
         {mobileOpen ? (
           <button
