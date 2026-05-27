@@ -67,7 +67,7 @@ export const SidebarNav: React.FC = () => {
         >
           {activeProfileInitials || "NA"}
         </span>
-        <span className="text-[0.6rem] text-on-surface-variant truncate max-w-[3.5rem] text-center">
+        <span className="text-[0.625rem] text-on-surface-variant truncate max-w-[3.5rem] text-center">
           {activeProfileName}
         </span>
       </Link>
